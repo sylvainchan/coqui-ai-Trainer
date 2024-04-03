@@ -40,9 +40,7 @@ with open(os.path.join(cwd, "trainer", "VERSION")) as fin:
     version = fin.read().strip()
 
 
-class build_py(
-    setuptools.command.build_py.build_py
-):  # pylint: disable=too-many-ancestors
+class build_py(setuptools.command.build_py.build_py):  # pylint: disable=too-many-ancestors
     def run(self):
         setuptools.command.build_py.build_py.run(self)
 
@@ -55,6 +53,7 @@ class develop(setuptools.command.develop.develop):
 def pip_install(package_name):
     subprocess.call([sys.executable, "-m", "pip", "install", package_name])
 
+
 requirements = open(os.path.join(cwd, "requirements.txt"), "r").readlines()
 with open(os.path.join(cwd, "requirements.dev.txt"), "r") as f:
     requirements_dev = f.readlines()
@@ -66,11 +65,13 @@ with open("README.md", "r", encoding="utf-8") as readme_file:
     README = readme_file.read()
 
 setup(
-    name="trainer",
+    name="coqui-tts-trainer",
     version=version,
-    url="https://github.com/coqui-ai/Trainer",
+    url="https://github.com/idiap/coqui-ai-Trainer",
     author="Eren Gölge",
     author_email="egolge@coqui.ai",
+    maintainer="Enno Hermann",
+    maintainer_email="enno.hermann@gmail.com",
     description="General purpose model trainer for PyTorch that is more flexible than it should be, by 🐸Coqui.",
     long_description=README,
     long_description_content_type="text/markdown",
@@ -84,21 +85,16 @@ setup(
         ]
     },
     project_urls={
-        "Documentation": "https://github.com/coqui-ai/Trainer/",
-        "Tracker": "https://github.com/coqui-ai/Trainer/issues",
-        "Repository": "https://github.com/coqui-ai/Trainer",
-        "Discussions": "https://github.com/coqui-ai/Trainer/discussions",
+        "Documentation": "https://github.com/idiap/coqui-ai-Trainer",
+        "Tracker": "https://github.com/idiap/coqui-ai-Trainer/issues",
+        "Repository": "https://github.com/idiap/coqui-ai-Trainer",
     },
     cmdclass={
         "build_py": build_py,
         "develop": develop,
     },
     install_requires=requirements,
-    extras_require={
-        "dev": requirements_dev,
-        "test": requirements_test,
-        "all": requirements_all
-    },
+    extras_require={"dev": requirements_dev, "test": requirements_test, "all": requirements_all},
     python_requires=">=3.6.0, <3.13",
     classifiers=[
         "Environment :: Console",

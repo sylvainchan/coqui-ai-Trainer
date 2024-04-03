@@ -2,7 +2,7 @@
 
 Welcome to the 👟!
 
-This repository is governed by [the Contributor Covenant Code of Conduct](https://github.com/coqui-ai/Trainer/blob/main/CODE_OF_CONDUCT.md).
+This repository is governed by [the Contributor Covenant Code of Conduct](https://github.com/idiap/coqui-ai-Trainer/blob/main/CODE_OF_CONDUCT.md).
 
 ## Where to start.
 We welcome everyone who likes to contribute to 👟.
@@ -11,13 +11,13 @@ You can contribute not only with code but with bug reports, comments, questions,
 
 If you like to contribute code, squash a bug but if you don't know where to start, here are some pointers.
 
-- [Github Issues Tracker](https://github.com/coqui-ai/Trainer/issues)
+- [Github Issues Tracker](https://github.com/idiap/coqui-ai-Trainer/issues)
 
     This is a place to find feature requests, bugs.
 
     Issues with the ```good first issue``` tag are good place for beginners to take on.
 
-- ✨**PR**✨ [pages](https://github.com/coqui-ai/Trainer/pulls) with the ```🚀new version``` tag.
+- ✨**PR**✨ [pages](https://github.com/idiap/coqui-ai-Trainer/pulls) with the ```🚀new version``` tag.
 
     We list all the target improvements for the next version. You can pick one of them and start contributing.
 
@@ -31,14 +31,14 @@ Let us know if you encounter a problem along the way.
 
 The following steps are tested on an Ubuntu system.
 
-1. Fork 👟[https://github.com/coqui-ai/Trainer] by clicking the fork button at the top right corner of the project page.
+1. Fork 👟[https://github.com/idiap/coqui-ai-Trainer] by clicking the fork button at the top right corner of the project page.
 
 2. Clone 👟 and add the main repo as a new remote named ```upsteam```.
 
     ```bash
-    $ git clone git@github.com:<your Github name>/Trainer.git
-    $ cd Trainer
-    $ git remote add upstream https://github.com/coqui-ai/Trainer.git
+    $ git clone git@github.com:<your Github name>/coqui-ai-Trainer.git
+    $ cd coqui-ai-Trainer
+    $ git remote add upstream https://github.com/idiap/coqui-ai-Trainer.git
     ```
 
 3. Install 👟 for development.
@@ -89,12 +89,10 @@ The following steps are tested on an Ubuntu system.
 
     ```bash
     $ git fetch upstream
-    $ git rebase upstream/master
-    # or for the development version
-    $ git rebase upstream/dev
+    $ git rebase upstream/main
     ```
 
-12. Send a PR to ```dev``` branch.
+12. Send a PR to ```main``` branch.
 
     Push your branch to your fork.
 
@@ -104,13 +102,11 @@ The following steps are tested on an Ubuntu system.
 
     Then go to your fork's Github page and click on 'Pull request' to send your ✨**PR**✨.
 
-    Please set ✨**PR**✨'s target branch to ```dev``` as we use ```dev``` to work on the next version.
-
 13. Let's discuss until it is perfect. 💪
 
-    We might ask you for certain changes that would appear in the ✨**PR**✨'s page under 👟[https://github.com/coqui-ai/Trainer/pulls].
+    We might ask you for certain changes that would appear in the ✨**PR**✨'s page under 👟[https://github.com/idiap/coqui-ai-Trainer/pulls].
 
-14. Once things look perfect, We merge it to the ```dev``` branch and make it ready for the next version.
+14. Once things look perfect, We merge it to the ```main``` branch and make it ready for the next version.
 
 Feel free to ping us at any step you need help using our communication channels.
 

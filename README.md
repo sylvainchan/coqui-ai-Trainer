@@ -2,24 +2,23 @@
 
 # 👟 Trainer
 An opinionated general purpose model trainer on PyTorch with a simple code base.
+Fork of the [original, unmaintained repository](https://github.com/coqui-ai/Trainer). New PyPI package: [coqui-tts-trainer](https://pypi.org/project/coqui-tts-trainer)
 
 ## Installation
 
 From Github:
 
 ```console
-git clone https://github.com/coqui-ai/Trainer
-cd Trainer
+git clone https://github.com/idiap/coqui-ai-Trainer
+cd coqui-ai-Trainer
 make install
 ```
 
 From PyPI:
 
 ```console
-pip install trainer
+pip install coqui-tts-trainer
 ```
-
-Prefer installing from Github as it is more stable.
 
 ## Implementing a model
 Subclass and overload the functions in the [```TrainerModel()```](trainer/model.py)
