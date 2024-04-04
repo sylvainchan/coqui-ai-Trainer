@@ -24,19 +24,13 @@
 import os
 import subprocess
 import sys
-from distutils.version import LooseVersion
 
 import setuptools.command.build_py
 import setuptools.command.develop
 from setuptools import find_packages, setup
 
-if LooseVersion(sys.version) < LooseVersion("3.6") or LooseVersion(
-    sys.version
-) > LooseVersion("3.12"):
-    raise RuntimeError(
-        "Trainer requires python >= 3.6 and <=3.12 "
-        "but your Python version is {}".format(sys.version)
-    )
+if sys.version_info < (3, 6) or sys.version_info >= (3, 13):
+    raise RuntimeError("Trainer requires python >= 3.6 and <3.13 " "but your Python version is {}".format(sys.version))
 
 
 cwd = os.path.dirname(os.path.abspath(__file__))
@@ -105,7 +99,7 @@ setup(
         "test": requirements_test,
         "all": requirements_all
     },
-    python_requires=">=3.6.0, <3.12",
+    python_requires=">=3.6.0, <3.13",
     classifiers=[
         "Environment :: Console",
         "Natural Language :: English",
@@ -123,6 +117,7 @@ setup(
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
     ],
     zip_safe=False,
 )
