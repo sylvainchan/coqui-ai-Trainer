@@ -1850,9 +1850,9 @@ class Trainer:
                 self.dashboard_logger.finish()
             # stop without error signal
             try:
-                sys.exit(1)
+                sys.exit(130)
             except SystemExit:
-                os._exit(1)  # pylint: disable=protected-access
+                os._exit(130)  # pylint: disable=protected-access
         except BaseException:  # pylint: disable=broad-except
             remove_experiment_folder(self.output_path)
             traceback.print_exc()
