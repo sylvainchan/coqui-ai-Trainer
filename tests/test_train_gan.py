@@ -79,8 +79,7 @@ def test_overfit_mnist_simple_gan():
             self.generator = Generator(latent_dim=100, img_shape=data_shape)
             self.discriminator = Discriminator(img_shape=data_shape)
 
-        def forward(self, x):
-            ...
+        def forward(self, x): ...
 
         def train_step(self, batch, criterion, optimizer_idx):
             imgs, _ = batch
@@ -174,8 +173,7 @@ def test_overfit_accelerate_mnist_simple_gan():
             self.generator = Generator(latent_dim=100, img_shape=data_shape)
             self.discriminator = Discriminator(img_shape=data_shape)
 
-        def forward(self, x):
-            ...
+        def forward(self, x): ...
 
         def train_step(self, batch, criterion, optimizer_idx):
             imgs, _ = batch
@@ -271,8 +269,7 @@ def test_overfit_manual_optimize_mnist_simple_gan():
             self.generator = Generator(latent_dim=100, img_shape=data_shape)
             self.discriminator = Discriminator(img_shape=data_shape)
 
-        def forward(self, x):
-            ...
+        def forward(self, x): ...
 
         def optimize(self, batch, trainer):
             imgs, _ = batch
@@ -385,8 +382,7 @@ def test_overfit_manual_optimize_grad_accum_mnist_simple_gan():
             self.generator = Generator(latent_dim=100, img_shape=data_shape)
             self.discriminator = Discriminator(img_shape=data_shape)
 
-        def forward(self, x):
-            ...
+        def forward(self, x): ...
 
         def optimize(self, batch, trainer):
             imgs, _ = batch
@@ -502,11 +498,9 @@ def test_overfit_manual_accelerate_optimize_grad_accum_mnist_simple_gan():
             self.generator = Generator(latent_dim=100, img_shape=data_shape)
             self.discriminator = Discriminator(img_shape=data_shape)
 
-        def train_step():
-            ...
+        def train_step(): ...
 
-        def forward(self, x):
-            ...
+        def forward(self, x): ...
 
         def optimize(self, batch, trainer):
             imgs, _ = batch

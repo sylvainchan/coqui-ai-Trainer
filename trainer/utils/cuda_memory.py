@@ -4,6 +4,7 @@ credit: https://github.com/BlackHC/toma/blob/master/toma/torch_cuda_memory.py
 Helper to free Torch cuda memory and determine when a Torch exception might be
 because of OOM conditions.
 """
+
 from __future__ import print_function
 
 import gc
@@ -82,9 +83,7 @@ def cuda_meminfo():
     if not torch.cuda.is_available():
         return
 
-    print(
-        "Total:", torch.cuda.memory_allocated() / 2**30, " GB Cached: ", torch.cuda.memory_reserved() / 2**30, "GB"
-    )
+    print("Total:", torch.cuda.memory_allocated() / 2**30, " GB Cached: ", torch.cuda.memory_reserved() / 2**30, "GB")
     print(
         "Max Total:",
         torch.cuda.max_memory_allocated() / 2**30,
