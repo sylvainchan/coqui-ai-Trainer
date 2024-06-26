@@ -61,9 +61,7 @@ class MnistModel(TrainerModel):
     def get_criterion():
         return torch.nn.NLLLoss()
 
-    def get_data_loader(
-        self, config, assets, is_eval, samples, verbose, num_gpus, rank=0
-    ):  # pylint: disable=unused-argument
+    def get_data_loader(self, config, assets, is_eval, samples, verbose, num_gpus, rank=0):  # pylint: disable=unused-argument
         transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
         dataset = MNIST(os.getcwd(), train=not is_eval, download=True, transform=transform)
         dataset.data = dataset.data[:256]

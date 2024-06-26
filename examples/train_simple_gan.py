@@ -83,8 +83,7 @@ class GANModel(TrainerModel):
         self.generator = Generator(latent_dim=100, img_shape=data_shape)
         self.discriminator = Discriminator(img_shape=data_shape)
 
-    def forward(self, x):
-        ...
+    def forward(self, x): ...
 
     def optimize(self, batch, trainer):
         imgs, _ = batch
@@ -153,9 +152,7 @@ class GANModel(TrainerModel):
     def get_criterion(self):
         return nn.BCELoss()
 
-    def get_data_loader(
-        self, config, assets, is_eval, samples, verbose, num_gpus, rank=0
-    ):  # pylint: disable=unused-argument
+    def get_data_loader(self, config, assets, is_eval, samples, verbose, num_gpus, rank=0):  # pylint: disable=unused-argument
         transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
         dataset = MNIST(os.getcwd(), train=not is_eval, download=True, transform=transform)
         dataset.data = dataset.data[:64]
@@ -165,7 +162,6 @@ class GANModel(TrainerModel):
 
 
 if __name__ == "__main__":
-
     config = GANModelConfig()
     config.batch_size = 64
     config.grad_clip = None
