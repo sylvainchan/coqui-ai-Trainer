@@ -37,14 +37,14 @@ def get_cuda():
     return use_cuda, device
 
 
-def get_git_branch():
+def get_git_branch() -> str:
     try:
         out = subprocess.check_output(["git", "branch"]).decode("utf8")
         current = next(line for line in out.split("\n") if line.startswith("*"))
         current.replace("* ", "")
     except subprocess.CalledProcessError:
         current = "inside_docker"
-    except FileNotFoundError:
+    except (FileNotFoundError, StopIteration):
         current = "unknown"
     return current
 
