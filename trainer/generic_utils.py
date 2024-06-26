@@ -16,7 +16,7 @@ def isimplemented(obj, method_name):
             obj.__getattribute__(method_name)()  # pylint: disable=bad-option-value, unnecessary-dunder-call
         except NotImplementedError:
             return False
-        except:  # pylint: disable=bare-except
+        except Exception:
             return True
         return True
     return False

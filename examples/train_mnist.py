@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision.datasets import MNIST
 
-from trainer import TrainerConfig, TrainerModel, Trainer, TrainerArgs
+from trainer import Trainer, TrainerArgs, TrainerConfig, TrainerModel
 
 
 @dataclass

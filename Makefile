@@ -4,7 +4,7 @@
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
-target_dirs := examples tests trainer
+target_dirs := bin examples tests trainer
 
 test_all:	## run tests and don't stop on an error.
 	coverage run -m pytest trainer tests

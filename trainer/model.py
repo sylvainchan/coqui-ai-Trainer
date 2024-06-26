@@ -1,10 +1,10 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, Tuple
 
 import torch
-from coqpit import Coqpit
 from torch import nn
 
+from trainer.trainer import Trainer
 from trainer.trainer_utils import is_apex_available
 
 if is_apex_available():
@@ -148,7 +148,7 @@ class TrainerModel(ABC, nn.Module):
         raise NotImplementedError(" [!] `optimize()` is not implemented.")
 
     def scaled_backward(
-        self, loss: torch.Tensor, trainer: "Trainer", optimizer: "Optimizer", *args: Any, **kwargs: Any
+        self, loss: torch.Tensor, trainer: Trainer, optimizer: torch.optim.Optimizer, *args: Any, **kwargs: Any
     ) -> Tuple[float, bool]:
         """Backward pass with gradient scaling for custom `optimize` calls.
 

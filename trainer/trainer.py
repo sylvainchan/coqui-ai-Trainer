@@ -38,6 +38,7 @@ from trainer.io import (
     save_checkpoint,
 )
 from trainer.logging import ConsoleLogger, DummyLogger, logger_factory
+from trainer.logging.base_dash_logger import BaseDashboardLogger
 from trainer.trainer_utils import (
     get_optimizer,
     get_scheduler,
@@ -290,7 +291,7 @@ class Trainer:
         config: Coqpit,
         output_path: str,
         c_logger: ConsoleLogger = None,
-        dashboard_logger: "Logger" = None,
+        dashboard_logger: BaseDashboardLogger = None,
         model: nn.Module = None,
         get_model: Callable = None,
         get_data_samples: Callable = None,
@@ -1162,7 +1163,7 @@ class Trainer:
     def _compute_grad_norm(self, optimizer: torch.optim.Optimizer):
         return torch.norm(torch.cat([param.grad.view(-1) for param in self.master_params(optimizer)], dim=0), p=2)
 
-    def _grad_clipping(self, grad_clip: float, optimizer: torch.optim.Optimizer, scaler: "AMPScaler"):
+    def _grad_clipping(self, grad_clip: float, optimizer: torch.optim.Optimizer, scaler: torch.amp.GradScaler):
         """Perform gradient clipping"""
         if grad_clip is not None and grad_clip > 0:
             if scaler:
@@ -1178,7 +1179,7 @@ class Trainer:
         batch: Dict,
         model: nn.Module,
         optimizer: torch.optim.Optimizer,
-        scaler: "AMPScaler",
+        scaler: torch.amp.GradScaler,
         criterion: nn.Module,
         scheduler: Union[torch.optim.lr_scheduler._LRScheduler, List, Dict],  # pylint: disable=protected-access
         config: Coqpit,
@@ -2046,8 +2047,12 @@ class Trainer:
 
     @staticmethod
     def restore_scheduler(
-        scheduler: Union["Scheduler", List, Dict], args: Coqpit, config: Coqpit, restore_epoch: int, restore_step: int
-    ) -> Union["Scheduler", List]:
+        scheduler: Union[torch.optim.lr_scheduler._LRScheduler, List, Dict],
+        args: Coqpit,
+        config: Coqpit,
+        restore_epoch: int,
+        restore_step: int,
+    ) -> Union[torch.optim.lr_scheduler._LRScheduler, List]:
         """Restore scheduler wrt restored model."""
         if scheduler is not None and args.continue_path:
             if isinstance(scheduler, list):

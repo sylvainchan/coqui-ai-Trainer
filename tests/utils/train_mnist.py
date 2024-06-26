@@ -1,5 +1,3 @@
-from distutils.command.config import config
-
 from mnist import MnistModel, MnistModelConfig
 
 from trainer import Trainer, TrainerArgs

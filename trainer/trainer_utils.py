@@ -8,6 +8,7 @@ import torch
 
 from trainer.logger import logger
 from trainer.torch import NoamLR, StepwiseGradualLR
+from trainer.trainer import TrainerArgs
 from trainer.utils.distributed import rank_zero_logger_info
 
 
@@ -61,7 +62,7 @@ def print_training_env(args, config):
 
 
 def setup_torch_training_env(
-    args: "TrainerArgs",
+    args: TrainerArgs,
     cudnn_enable: bool,
     cudnn_benchmark: bool,
     cudnn_deterministic: bool,
