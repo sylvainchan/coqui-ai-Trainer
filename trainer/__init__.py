@@ -1,9 +1,6 @@
-import os
+import importlib.metadata
 
 from trainer.model import *
 from trainer.trainer import *
 
-with open(os.path.join(os.path.dirname(__file__), "VERSION"), encoding="utf-8") as f:
-    version = f.read().strip()
-
-__version__ = version
+__version__ = importlib.metadata.version("coqui-tts-trainer")

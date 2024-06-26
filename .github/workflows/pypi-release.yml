@@ -14,9 +14,9 @@ jobs:
       - name: Verify tag matches version
         run: |
           set -ex
-          version=$(cat trainer/VERSION)
+          version=$(grep -m 1 version pyproject.toml | grep -P '\d+\.\d+\.\d+' -o)
           tag="${GITHUB_REF/refs\/tags\/}"
-          if [[ "$version" != "$tag" ]]; then
+          if [[ "v$version" != "$tag" ]]; then
             exit 1
           fi
       - uses: actions/setup-python@v5
