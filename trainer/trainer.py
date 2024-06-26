@@ -9,7 +9,7 @@ import time
 import traceback
 from contextlib import nullcontext
 from inspect import signature
-from typing import Callable, Optional, Union
+from typing import Any, Callable, Optional, Union
 
 import torch
 import torch.distributed as dist
@@ -586,7 +586,7 @@ class Trainer:
     def restore_model(
         self,
         config: Coqpit,
-        restore_path: str,
+        restore_path: Union[str, os.PathLike[Any]],
         model: nn.Module,
         optimizer: torch.optim.Optimizer,
         scaler: torch.cuda.amp.GradScaler = None,

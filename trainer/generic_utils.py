@@ -1,6 +1,7 @@
 import datetime
 import os
 import subprocess
+from typing import Any, Union
 
 import fsspec
 import torch
@@ -8,7 +9,7 @@ import torch
 from trainer.logger import logger
 
 
-def isimplemented(obj, method_name):
+def isimplemented(obj, method_name) -> bool:
     """Check if a method is implemented in a class."""
     if method_name in dir(obj) and callable(getattr(obj, method_name)):
         try:
@@ -49,7 +50,7 @@ def get_git_branch() -> str:
     return current
 
 
-def get_commit_hash():
+def get_commit_hash() -> str:
     """https://stackoverflow.com/questions/14989858/get-the-current-git-hash-in-a-python-script"""
     try:
         commit = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"]).decode().strip()
@@ -59,7 +60,7 @@ def get_commit_hash():
     return commit
 
 
-def get_experiment_folder_path(root_path, model_name):
+def get_experiment_folder_path(root_path: Union[str, os.PathLike[Any]], model_name: str) -> str:
     """Get an experiment folder path with the current date and time"""
     date_str = datetime.datetime.now().strftime("%B-%d-%Y_%I+%M%p")
     commit_hash = get_commit_hash()
@@ -67,8 +68,9 @@ def get_experiment_folder_path(root_path, model_name):
     return output_folder
 
 
-def remove_experiment_folder(experiment_path):
+def remove_experiment_folder(experiment_path: Union[str, os.PathLike[Any]]) -> None:
     """Check folder if there is a checkpoint, otherwise remove the folder"""
+    experiment_path = str(experiment_path)
     fs = fsspec.get_mapper(experiment_path).fs
     checkpoint_files = fs.glob(experiment_path + "/*.pth")
     if not checkpoint_files:
@@ -79,7 +81,7 @@ def remove_experiment_folder(experiment_path):
         logger.info(" ! Run is kept in %s", experiment_path)
 
 
-def count_parameters(model):
+def count_parameters(model: torch.nn.Module) -> int:
     r"""Count number of trainable parameters in a network"""
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
