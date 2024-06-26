@@ -1,6 +1,4 @@
-black==24.2.0
 coverage
-isort
 pytest
-pylint
+ruff==0.4.10
 accelerate  # for testing
