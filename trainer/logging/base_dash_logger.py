@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Dict, Union
+from typing import Union
 
 from trainer.io import save_fsspec
 from trainer.utils.distributed import rank_zero_only
@@ -37,15 +37,15 @@ class BaseDashboardLogger(ABC):
         pass
 
     @abstractmethod
-    def add_scalars(self, scope_name: str, scalars: Dict, step: int):
+    def add_scalars(self, scope_name: str, scalars: dict, step: int):
         pass
 
     @abstractmethod
-    def add_figures(self, scope_name: str, figures: Dict, step: int):
+    def add_figures(self, scope_name: str, figures: dict, step: int):
         pass
 
     @abstractmethod
-    def add_audios(self, scope_name: str, audios: Dict, step: int, sample_rate: int):
+    def add_audios(self, scope_name: str, audios: dict, step: int, sample_rate: int):
         pass
 
     @abstractmethod
@@ -58,7 +58,7 @@ class BaseDashboardLogger(ABC):
 
     @staticmethod
     @rank_zero_only
-    def save_model(state: Dict, path: str):
+    def save_model(state: dict, path: str):
         save_fsspec(state, path)
 
     def train_step_stats(self, step, stats):

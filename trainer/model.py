@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Optional
 
 import torch
 from torch import nn
@@ -18,7 +18,7 @@ class TrainerModel(ABC, nn.Module):
     """Abstract 🐸TTS class. Every new 🐸TTS model must inherit this."""
 
     @abstractmethod
-    def forward(self, input: torch.Tensor, *args, aux_input: Optional[dict[str, Any]] = None, **kwargs) -> Dict:
+    def forward(self, input: torch.Tensor, *args, aux_input: Optional[dict[str, Any]] = None, **kwargs) -> dict:
         """Forward ... for the model mainly used in training.
 
         You can be flexible here and use different number of arguments and argument names since it is intended to be
@@ -37,7 +37,7 @@ class TrainerModel(ABC, nn.Module):
         ...
         return outputs_dict
 
-    def format_batch(self, batch: Dict) -> Dict:
+    def format_batch(self, batch: dict) -> dict:
         """Format batch returned by the data loader before sending it to the model.
 
         If not implemented, model uses the batch as is.
@@ -45,7 +45,7 @@ class TrainerModel(ABC, nn.Module):
         """
         return batch
 
-    def format_batch_on_device(self, batch: Dict) -> Dict:
+    def format_batch_on_device(self, batch: dict) -> dict:
         """Format batch on device before sending it to the model.
 
         If not implemented, model uses the batch as is.
@@ -53,7 +53,7 @@ class TrainerModel(ABC, nn.Module):
         """
         return batch
 
-    def train_step(self, *args: Any, **kwargs: Any) -> Tuple[Dict, Dict]:
+    def train_step(self, *args: Any, **kwargs: Any) -> tuple[dict, dict]:
         """Perform a single training step. Run the model forward ... and compute losses.
 
         Args:
@@ -126,7 +126,7 @@ class TrainerModel(ABC, nn.Module):
     def init_for_training(self) -> None:
         """Initialize model for training."""
 
-    def optimize(self, *args: Any, **kwargs: Any) -> Tuple[Dict, Dict, float]:
+    def optimize(self, *args: Any, **kwargs: Any) -> tuple[dict, dict, float]:
         """Model specific optimization step that must perform the following steps:
             1. Forward pass
             2. Compute loss
@@ -146,7 +146,7 @@ class TrainerModel(ABC, nn.Module):
 
     def scaled_backward(
         self, loss: torch.Tensor, trainer: Trainer, optimizer: torch.optim.Optimizer, *args: Any, **kwargs: Any
-    ) -> Tuple[float, bool]:
+    ) -> tuple[float, bool]:
         """Backward pass with gradient scaling for custom `optimize` calls.
 
         Args:

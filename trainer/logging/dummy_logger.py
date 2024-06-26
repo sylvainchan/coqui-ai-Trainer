@@ -1,4 +1,4 @@
-from typing import Dict, Union
+from typing import Union
 
 from trainer.logging.base_dash_logger import BaseDashboardLogger
 
@@ -29,13 +29,13 @@ class DummyLogger(BaseDashboardLogger):
     def add_artifact(self, file_or_dir: str, name: str, artifact_type: str, aliases=None):
         pass
 
-    def add_scalars(self, scope_name: str, scalars: Dict, step: int):
+    def add_scalars(self, scope_name: str, scalars: dict, step: int):
         pass
 
-    def add_figures(self, scope_name: str, figures: Dict, step: int):
+    def add_figures(self, scope_name: str, figures: dict, step: int):
         pass
 
-    def add_audios(self, scope_name: str, audios: Dict, step: int, sample_rate: int):
+    def add_audios(self, scope_name: str, audios: dict, step: int, sample_rate: int):
         pass
 
     def flush(self):

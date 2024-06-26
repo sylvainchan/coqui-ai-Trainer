@@ -1,4 +1,4 @@
-from typing import Callable, Dict
+from typing import Callable
 
 
 class TrainerCallback:
@@ -13,7 +13,7 @@ class TrainerCallback:
         self.callbacks_on_train_step_end = []
         self.callbacks_on_keyboard_interrupt = []
 
-    def parse_callbacks_dict(self, callbacks_dict: Dict[str, Callable]) -> None:
+    def parse_callbacks_dict(self, callbacks_dict: dict[str, Callable]) -> None:
         for key, value in callbacks_dict.items():
             if key == "on_init_start":
                 self.callbacks_on_init_start.append(value)

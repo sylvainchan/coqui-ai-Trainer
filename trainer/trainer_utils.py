@@ -1,7 +1,7 @@
 import importlib
 import os
 import random
-from typing import Dict, List, Optional, Tuple
+from typing import Optional
 
 import numpy as np
 import torch
@@ -70,7 +70,7 @@ def setup_torch_training_env(
     training_seed=54321,
     allow_tf32: bool = False,
     gpu=None,
-) -> Tuple[bool, int]:
+) -> tuple[bool, int]:
     """Setup PyTorch environment for training.
 
     Args:
@@ -120,7 +120,7 @@ def setup_torch_training_env(
 
 
 def get_scheduler(
-    lr_scheduler: str, lr_scheduler_params: Dict, optimizer: torch.optim.Optimizer
+    lr_scheduler: str, lr_scheduler_params: dict, optimizer: torch.optim.Optimizer
 ) -> torch.optim.lr_scheduler._LRScheduler:  # pylint: disable=protected-access
     """Find, initialize and return a Torch scheduler.
 
@@ -148,7 +148,7 @@ def get_optimizer(
     optimizer_params: dict,
     lr: float,
     model: torch.nn.Module = None,
-    parameters: Optional[List] = None,
+    parameters: Optional[list] = None,
 ) -> torch.optim.Optimizer:
     """Find, initialize and return a Torch optimizer.
 

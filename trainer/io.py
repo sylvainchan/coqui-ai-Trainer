@@ -4,7 +4,7 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Tuple, Union
+from typing import Any, Callable, Union
 from urllib.parse import urlparse
 
 import fsspec
@@ -50,7 +50,7 @@ def copy_model_files(config: Coqpit, out_path, new_fields):
 
 def load_fsspec(
     path: str,
-    map_location: Union[str, Callable, torch.device, Dict[Union[str, torch.device], Union[str, torch.device]]] = None,
+    map_location: Union[str, Callable, torch.device, dict[Union[str, torch.device], Union[str, torch.device]]] = None,
     cache: bool = True,
     **kwargs,
 ) -> Any:
@@ -223,7 +223,7 @@ def save_best_model(
     return best_loss
 
 
-def get_last_checkpoint(path: str) -> Tuple[str, str]:
+def get_last_checkpoint(path: str) -> tuple[str, str]:
     """Get latest checkpoint or/and best model in path.
 
     It is based on globbing for `*.pth` and the RegEx
@@ -302,7 +302,7 @@ def keep_n_checkpoints(path: str, n: int) -> None:
             fs.rm(file_name)
 
 
-def sort_checkpoints(output_path: str, checkpoint_prefix: str, use_mtime: bool = False) -> List[str]:
+def sort_checkpoints(output_path: str, checkpoint_prefix: str, use_mtime: bool = False) -> list[str]:
     """Sort checkpoint paths based on the checkpoint step number.
 
     Args:

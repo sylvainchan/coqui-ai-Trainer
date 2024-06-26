@@ -10,7 +10,7 @@ import traceback
 from contextlib import nullcontext
 from dataclasses import dataclass, field
 from inspect import signature
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Callable, Optional, Union
 
 import torch
 import torch.distributed as dist
@@ -178,17 +178,17 @@ class TrainerConfig(Coqpit):
         metadata={"help": "Step the scheduler after each epoch else step after each iteration. Defaults to True"},
     )
     # Fields for optimzation
-    lr: Union[float, List[float]] = field(
+    lr: Union[float, list[float]] = field(
         default=0.001, metadata={"help": "Learning rate for each optimizer. Defaults to 0.001"}
     )
-    optimizer: Union[str, List[str]] = field(default=None, metadata={"help": "Optimizer(s) to use. Defaults to None"})
-    optimizer_params: Union[Dict, List[Dict]] = field(
+    optimizer: Union[str, list[str]] = field(default=None, metadata={"help": "Optimizer(s) to use. Defaults to None"})
+    optimizer_params: Union[dict, list[dict]] = field(
         default_factory=dict, metadata={"help": "Optimizer(s) arguments. Defaults to {}"}
     )
-    lr_scheduler: Union[str, List[str]] = field(
+    lr_scheduler: Union[str, list[str]] = field(
         default=None, metadata={"help": "Learning rate scheduler(s) to use. Defaults to None"}
     )
-    lr_scheduler_params: Dict = field(
+    lr_scheduler_params: dict = field(
         default_factory=dict, metadata={"help": "Learning rate scheduler(s) arguments. Defaults to {}"}
     )
     use_grad_scaler: bool = field(
@@ -295,9 +295,9 @@ class Trainer:
         model: nn.Module = None,
         get_model: Optional[Callable] = None,
         get_data_samples: Optional[Callable] = None,
-        train_samples: Optional[List] = None,
-        eval_samples: Optional[List] = None,
-        test_samples: Optional[List] = None,
+        train_samples: Optional[list] = None,
+        eval_samples: Optional[list] = None,
+        test_samples: Optional[list] = None,
         train_loader: DataLoader = None,
         eval_loader: DataLoader = None,
         training_assets: Optional[dict] = None,
@@ -672,7 +672,7 @@ class Trainer:
             shutil.copyfile(file_path, os.path.join(self.output_path, file_name))
 
     @staticmethod
-    def parse_argv(args: Union[Coqpit, List]):
+    def parse_argv(args: Union[Coqpit, list]):
         """Parse command line arguments to init or override `TrainerArgs()`."""
         if isinstance(args, Coqpit):
             parser = args.init_argparse(arg_prefix="")
@@ -719,8 +719,8 @@ class Trainer:
 
     @staticmethod
     def init_training(
-        args: TrainerArgs, coqpit_overrides: Dict, config: Coqpit = None
-    ) -> Tuple[Coqpit, Dict[str, str]]:
+        args: TrainerArgs, coqpit_overrides: dict, config: Coqpit = None
+    ) -> tuple[Coqpit, dict[str, str]]:
         """Initialize training and update model configs from command line arguments.
 
         Args:
@@ -758,7 +758,7 @@ class Trainer:
         return config, new_fields
 
     @staticmethod
-    def setup_training_environment(args, config, gpu) -> Tuple[bool, int]:
+    def setup_training_environment(args, config, gpu) -> tuple[bool, int]:
         if platform.system() != "Windows":
             # https://github.com/pytorch/pytorch/issues/973
             import resource  # pylint: disable=import-outside-toplevel
@@ -814,7 +814,7 @@ class Trainer:
         model: nn.Module,
         optimizer: torch.optim.Optimizer,
         scaler: torch.cuda.amp.GradScaler = None,
-    ) -> Tuple[nn.Module, torch.optim.Optimizer, torch.cuda.amp.GradScaler, int]:
+    ) -> tuple[nn.Module, torch.optim.Optimizer, torch.cuda.amp.GradScaler, int]:
         """Restore training from an old run. It restores model, optimizer, AMP scaler and training stats.
 
         Args:
@@ -892,9 +892,9 @@ class Trainer:
         self,
         model: nn.Module,
         config: Coqpit,
-        assets: Dict,
+        assets: dict,
         is_eval: bool,
-        samples: List,
+        samples: list,
         verbose: bool,
         num_gpus: int,
     ) -> DataLoader:
@@ -919,7 +919,7 @@ class Trainer:
         ), " ❗ len(DataLoader) returns 0. Make sure your dataset is not empty or len(dataset) > 0. "
         return loader
 
-    def get_train_dataloader(self, training_assets: Dict, samples: List, verbose: bool) -> DataLoader:
+    def get_train_dataloader(self, training_assets: dict, samples: list, verbose: bool) -> DataLoader:
         """Initialize and return a training data loader.
 
         Call ```model.get_train_data_loader``` if it is implemented, else call ```model.get_data_loader```
@@ -956,7 +956,7 @@ class Trainer:
             self.num_gpus,
         )
 
-    def get_eval_dataloader(self, training_assets: Dict, samples: List, verbose: bool) -> DataLoader:
+    def get_eval_dataloader(self, training_assets: dict, samples: list, verbose: bool) -> DataLoader:
         """Initialize and return a evaluation data loader.
 
         Call ```model.get_eval_data_loader``` if it is implemented, else call ```model.get_data_loader```
@@ -993,7 +993,7 @@ class Trainer:
             self.num_gpus,
         )
 
-    def get_test_dataloader(self, training_assets: Dict, samples: List, verbose: bool) -> DataLoader:
+    def get_test_dataloader(self, training_assets: dict, samples: list, verbose: bool) -> DataLoader:
         """Initialize and return a evaluation data loader.
 
         Call ```model.get_test_data_loader``` if it is implemented, else call ```model.get_data_loader```
@@ -1030,7 +1030,7 @@ class Trainer:
             self.num_gpus,
         )
 
-    def format_batch(self, batch: List) -> Dict:
+    def format_batch(self, batch: list) -> dict:
         """Format the dataloader output and return a batch.
 
         1. Call ```model.format_batch```.
@@ -1084,8 +1084,8 @@ class Trainer:
 
     @staticmethod
     def _model_train_step(
-        batch: Dict, model: nn.Module, criterion: nn.Module, optimizer_idx: Optional[int] = None
-    ) -> Tuple[Dict, Dict]:
+        batch: dict, model: nn.Module, criterion: nn.Module, optimizer_idx: Optional[int] = None
+    ) -> tuple[dict, dict]:
         """Perform a trainig forward step. Compute model outputs and losses.
 
         Args:
@@ -1124,7 +1124,7 @@ class Trainer:
 
     def detach_loss_dict(
         self,
-        loss_dict: Dict,
+        loss_dict: dict,
         step_optimizer: bool,
         optimizer_idx: Optional[int] = None,
         grad_norm: Optional[float] = None,
@@ -1142,7 +1142,7 @@ class Trainer:
                 loss_dict_detached["grad_norm"] = grad_norm
         return loss_dict_detached
 
-    def _compute_loss(self, batch: Dict, model: nn.Module, criterion: nn.Module, config: Coqpit, optimizer_idx: int):
+    def _compute_loss(self, batch: dict, model: nn.Module, criterion: nn.Module, config: Coqpit, optimizer_idx: int):
         device, dtype = self._get_autocast_args(config.mixed_precision, config.precision)
         with torch.autocast(device_type=device, dtype=dtype, enabled=config.mixed_precision):
             if optimizer_idx is not None:
@@ -1181,17 +1181,17 @@ class Trainer:
 
     def optimize(
         self,
-        batch: Dict,
+        batch: dict,
         model: nn.Module,
         optimizer: torch.optim.Optimizer,
         scaler: torch.amp.GradScaler,
         criterion: nn.Module,
-        scheduler: Union[torch.optim.lr_scheduler._LRScheduler, List, Dict],  # pylint: disable=protected-access
+        scheduler: Union[torch.optim.lr_scheduler._LRScheduler, list, dict],  # pylint: disable=protected-access
         config: Coqpit,
         optimizer_idx: Optional[int] = None,
         step_optimizer: bool = True,
         num_optimizers: int = 1,
-    ) -> Tuple[Dict, Dict, int]:
+    ) -> tuple[dict, dict, int]:
         """Perform a forward - backward pass and run the optimizer.
 
         Args:
@@ -1303,7 +1303,7 @@ class Trainer:
         loss_dict_detached = self.detach_loss_dict(loss_dict, step_optimizer, optimizer_idx, grad_norm)
         return outputs, loss_dict_detached, step_time
 
-    def train_step(self, batch: Dict, batch_n_steps: int, step: int, loader_start_time: float) -> Tuple[Dict, Dict]:
+    def train_step(self, batch: dict, batch_n_steps: int, step: int, loader_start_time: float) -> tuple[dict, dict]:
         """Perform a training step on a batch of inputs and log the process.
 
         Args:
@@ -1539,8 +1539,8 @@ class Trainer:
     #######################
 
     def _model_eval_step(
-        self, batch: Dict, model: nn.Module, criterion: nn.Module, optimizer_idx: Optional[int] = None
-    ) -> Tuple[Dict, Dict]:
+        self, batch: dict, model: nn.Module, criterion: nn.Module, optimizer_idx: Optional[int] = None
+    ) -> tuple[dict, dict]:
         """Perform a evaluation forward pass. Compute model outputs and losses with no gradients.
 
         Args:
@@ -1566,7 +1566,7 @@ class Trainer:
 
         return model.eval_step(*input_args)
 
-    def eval_step(self, batch: Dict, step: int) -> Tuple[Dict, Dict]:
+    def eval_step(self, batch: dict, step: int) -> tuple[dict, dict]:
         """Perform a evaluation step on a batch of inputs and log the process.
 
         Args:
@@ -1975,7 +1975,7 @@ class Trainer:
     #####################
 
     @staticmethod
-    def get_optimizer(model: nn.Module, config: Coqpit) -> Union[torch.optim.Optimizer, List]:
+    def get_optimizer(model: nn.Module, config: Coqpit) -> Union[torch.optim.Optimizer, list]:
         """Receive the optimizer from the model if model implements `get_optimizer()` else
         check the optimizer parameters in the config and try initiating the optimizer.
 
@@ -1999,7 +1999,7 @@ class Trainer:
         return optimizer
 
     @staticmethod
-    def get_lr(model: nn.Module, config: Coqpit) -> Union[float, List[float]]:
+    def get_lr(model: nn.Module, config: Coqpit) -> Union[float, list[float]]:
         """Set the initial learning rate by the model if model implements `get_lr()` else try setting the learning rate
         fromthe config.
 
@@ -2022,8 +2022,8 @@ class Trainer:
 
     @staticmethod
     def get_scheduler(
-        model: nn.Module, config: Coqpit, optimizer: Union[torch.optim.Optimizer, List, Dict]
-    ) -> Union[torch.optim.lr_scheduler._LRScheduler, List]:  # pylint: disable=protected-access
+        model: nn.Module, config: Coqpit, optimizer: Union[torch.optim.Optimizer, list, dict]
+    ) -> Union[torch.optim.lr_scheduler._LRScheduler, list]:  # pylint: disable=protected-access
         """Receive the scheduler from the model if model implements `get_scheduler()` else
         check the config and try initiating the scheduler.
 
@@ -2052,12 +2052,12 @@ class Trainer:
 
     @staticmethod
     def restore_scheduler(
-        scheduler: Union[torch.optim.lr_scheduler._LRScheduler, List, Dict],
+        scheduler: Union[torch.optim.lr_scheduler._LRScheduler, list, dict],
         args: Coqpit,
         config: Coqpit,
         restore_epoch: int,
         restore_step: int,
-    ) -> Union[torch.optim.lr_scheduler._LRScheduler, List]:
+    ) -> Union[torch.optim.lr_scheduler._LRScheduler, list]:
         """Restore scheduler wrt restored model."""
         if scheduler is not None and args.continue_path:
             if isinstance(scheduler, list):
@@ -2097,7 +2097,7 @@ class Trainer:
     ####################
 
     @staticmethod
-    def _detach_loss_dict(loss_dict: Dict) -> Dict:
+    def _detach_loss_dict(loss_dict: dict) -> dict:
         """Detach loss values from autograp.
 
         Args:
@@ -2114,7 +2114,7 @@ class Trainer:
                 loss_dict_detached[key] = value.detach().cpu().item()
         return loss_dict_detached
 
-    def _pick_target_avg_loss(self, keep_avg_target: KeepAverage) -> Dict:
+    def _pick_target_avg_loss(self, keep_avg_target: KeepAverage) -> dict:
         """Pick the target loss to compare models"""
 
         # if the keep_avg_target is None or empty return None
