@@ -5,11 +5,20 @@ requires = ["setuptools", "wheel"]
 line-length = 120
 target-version = "py38"
 lint.extend-select = [
+    "B",  # bugbear
     "I",  # import sorting
+    "PIE",
+    "PLC",
+    "PLE",
+    "PLW",
+    "RUF",
+    "UP",  # pyupgrade
 ]
 
 lint.ignore = [
     "F821",  # TODO: enable
+    "PLW2901",  # TODO: enable
+    "UP032",  # TODO: enable
 ]
 
 [tool.ruff.lint.per-file-ignores]

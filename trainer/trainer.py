@@ -293,17 +293,17 @@ class Trainer:
         c_logger: ConsoleLogger = None,
         dashboard_logger: BaseDashboardLogger = None,
         model: nn.Module = None,
-        get_model: Callable = None,
-        get_data_samples: Callable = None,
-        train_samples: List = None,
-        eval_samples: List = None,
-        test_samples: List = None,
+        get_model: Optional[Callable] = None,
+        get_data_samples: Optional[Callable] = None,
+        train_samples: Optional[List] = None,
+        eval_samples: Optional[List] = None,
+        test_samples: Optional[List] = None,
         train_loader: DataLoader = None,
         eval_loader: DataLoader = None,
-        training_assets: Dict = {},
+        training_assets: Optional[dict] = None,
         parse_command_line_args: bool = True,
-        callbacks: Dict[str, Callable] = {},
-        gpu: int = None,
+        callbacks: Optional[dict[str, Callable]] = None,
+        gpu: Optional[int] = None,
     ) -> None:
         """Simple yet powerful 🐸💬 TTS trainer for PyTorch.
 
@@ -391,6 +391,11 @@ class Trainer:
                 - Overfitting to a batch.
                 - TPU training
         """
+        if training_assets is None:
+            training_assets = {}
+        if callbacks is None:
+            callbacks = {}
+
         if parse_command_line_args:
             # parse command-line arguments to override TrainerArgs()
             args, coqpit_overrides = self.parse_argv(args)
@@ -534,7 +539,7 @@ class Trainer:
             and not isimplemented(self.model, "optimize")
         ):
             raise ValueError(
-                " [!] Coqui Trainer does not support grad_accum_steps for multiple-optimizer setup, please set grad_accum_steps to 1 or implement in your model a custom method called ´optimize` that need to deal with dangling gradients in multiple-optimizer setup!"
+                " [!] Coqui Trainer does not support grad_accum_steps for multiple-optimizer setup, please set grad_accum_steps to 1 or implement in your model a custom method called `optimize` that need to deal with dangling gradients in multiple-optimizer setup!"
             )
 
         # CALLBACK
@@ -662,7 +667,7 @@ class Trainer:
         if os.path.isfile(file_path):
             file_name = os.path.basename(file_path)
             self.dashboard_logger.add_artifact(file_or_dir=file_path, name=file_name, artifact_type="file")
-            with open(file_path, "r", encoding="utf8") as f:
+            with open(file_path, encoding="utf8") as f:
                 self.dashboard_logger.add_text("training-script", f"{f.read()}", 0)
             shutil.copyfile(file_path, os.path.join(self.output_path, file_name))
 
@@ -1418,11 +1423,11 @@ class Trainer:
             lrs = {}
             if isinstance(self.optimizer, list):
                 for idx, optimizer in enumerate(self.optimizer):
-                    current_lr = self.optimizer[idx].param_groups[0]["lr"]
+                    current_lr = optimizer.param_groups[0]["lr"]
                     lrs.update({f"current_lr_{idx}": current_lr})
             elif isinstance(self.optimizer, dict):
                 for key, optimizer in self.optimizer.items():
-                    current_lr = self.optimizer[key].param_groups[0]["lr"]
+                    current_lr = optimizer.param_groups[0]["lr"]
                     lrs.update({f"current_lr_{key}": current_lr})
             else:
                 current_lr = self.optimizer.param_groups[0]["lr"]
@@ -1763,7 +1768,7 @@ class Trainer:
 
         self.total_steps_done = self.restore_step
 
-        for epoch in range(0, self.config.epochs):
+        for epoch in range(self.config.epochs):
             if self.num_gpus > 1:
                 # let all processes sync up before starting with a new epoch of training
                 dist.barrier()

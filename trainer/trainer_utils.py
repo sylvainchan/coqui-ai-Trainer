@@ -1,7 +1,7 @@
 import importlib
 import os
 import random
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -148,7 +148,7 @@ def get_optimizer(
     optimizer_params: dict,
     lr: float,
     model: torch.nn.Module = None,
-    parameters: List = None,
+    parameters: Optional[List] = None,
 ) -> torch.optim.Optimizer:
     """Find, initialize and return a Torch optimizer.
 
@@ -163,7 +163,7 @@ def get_optimizer(
     """
     if optimizer_name.lower() == "radam":
         module = importlib.import_module("TTS.utils.radam")
-        optimizer = getattr(module, "RAdam")
+        optimizer = module.RAdam
     else:
         optimizer = getattr(torch.optim, optimizer_name)
     if model is not None:

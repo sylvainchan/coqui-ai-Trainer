@@ -54,14 +54,14 @@ def pip_install(package_name):
     subprocess.call([sys.executable, "-m", "pip", "install", package_name])
 
 
-requirements = open(os.path.join(cwd, "requirements.txt"), "r").readlines()
-with open(os.path.join(cwd, "requirements.dev.txt"), "r") as f:
+requirements = open(os.path.join(cwd, "requirements.txt")).readlines()
+with open(os.path.join(cwd, "requirements.dev.txt")) as f:
     requirements_dev = f.readlines()
-with open(os.path.join(cwd, "requirements.test.txt"), "r") as f:
+with open(os.path.join(cwd, "requirements.test.txt")) as f:
     requirements_test = f.readlines()
 requirements_all = requirements + requirements_dev + requirements_test
 
-with open("README.md", "r", encoding="utf-8") as readme_file:
+with open("README.md", encoding="utf-8") as readme_file:
     README = readme_file.read()
 
 setup(

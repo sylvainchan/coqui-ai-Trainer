@@ -1,3 +1,5 @@
+from typing import Optional
+
 import numpy as np
 import torch
 from torch.utils.data.distributed import DistributedSampler
@@ -29,8 +31,8 @@ class DistributedSamplerWrapper(DistributedSampler):
     def __init__(
         self,
         sampler,
-        num_replicas: int = None,
-        rank: int = None,
+        num_replicas: Optional[int] = None,
+        rank: Optional[int] = None,
         shuffle: bool = True,
         seed: int = 0,
     ):

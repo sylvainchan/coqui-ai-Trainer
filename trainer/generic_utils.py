@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import datetime
 import os
 import subprocess
@@ -87,7 +86,7 @@ def count_parameters(model):
 
 def set_partial_state_dict(model_dict, checkpoint_state, c):
     # Partial initialization: if there is a mismatch with new and old layer, it is skipped.
-    for k, v in checkpoint_state.items():
+    for k in checkpoint_state:
         if k not in model_dict:
             logger.info(" | > Layer missing in the model definition: %s", k)
     for k in model_dict:

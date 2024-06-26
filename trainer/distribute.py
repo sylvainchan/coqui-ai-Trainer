@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 import os
 import pathlib
@@ -51,7 +50,7 @@ def distribute():
         command[-1] = f"--rank={rank}"
         # prevent stdout for processes with rank != 0
         stdout = None
-        p = subprocess.Popen(["python3"] + command, stdout=stdout, env=my_env)  # pylint: disable=consider-using-with
+        p = subprocess.Popen(["python3", *command], stdout=stdout, env=my_env)  # pylint: disable=consider-using-with
         processes.append(p)
         logger.info(command)
 
