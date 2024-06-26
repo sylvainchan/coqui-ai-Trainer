@@ -1,6 +1,13 @@
 <p align="center"><img src="https://user-images.githubusercontent.com/1402048/151947958-0bcadf38-3a82-4b4e-96b4-a38d3721d737.png" align="right" height="255px" /></p>
 
 # 👟 Trainer
+
+[![PyPI - License](https://img.shields.io/pypi/l/coqui-tts-trainer)](https://github.com/idiap/coqui-ai-Trainer/blob/main/LICENSE.txt)
+![PyPI - Python Version](https://img.shields.io/pypi/pyversions/coqui-tts-trainer)
+[![PyPI - Version](https://img.shields.io/pypi/v/coqui-tts-trainer)](https://pypi.org/project/coqui-tts-trainer)
+![GithubActions](https://github.com/idiap/coqui-ai-Trainer/actions/workflows/tests.yml/badge.svg)
+![GithubActions](https://github.com/idiap/coqui-ai-Trainer/actions/workflows/style_check.yml/badge.svg)
+
 An opinionated general purpose model trainer on PyTorch with a simple code base.
 Fork of the [original, unmaintained repository](https://github.com/coqui-ai/Trainer). New PyPI package: [coqui-tts-trainer](https://pypi.org/project/coqui-tts-trainer)
 
