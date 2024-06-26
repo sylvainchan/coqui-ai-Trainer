@@ -93,3 +93,7 @@ lint.ignore = [
     "F401", # init files may have "unused" imports for now
     "F403", # init files may have star imports for now
 ]
+
+[tool.coverage.run]
+parallel = true
+source = ["trainer"]
