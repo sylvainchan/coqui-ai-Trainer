@@ -13,8 +13,7 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision.datasets import MNIST
 
-from trainer import Trainer, TrainerConfig, TrainerModel
-from trainer.trainer import TrainerArgs
+from trainer import Trainer, TrainerArgs, TrainerConfig, TrainerModel
 
 is_cuda = torch.cuda.is_available()
 

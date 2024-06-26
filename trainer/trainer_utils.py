@@ -6,9 +6,9 @@ from typing import Optional
 import numpy as np
 import torch
 
+from trainer.config import TrainerArgs
 from trainer.logger import logger
 from trainer.torch import NoamLR, StepwiseGradualLR
-from trainer.trainer import TrainerArgs
 from trainer.utils.distributed import rank_zero_logger_info
 
 
