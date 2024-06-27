@@ -1,6 +1,0 @@
-torch>=1.7
-coqpit
-psutil
-fsspec
-tensorboard
-soundfile

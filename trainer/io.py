@@ -4,7 +4,7 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Tuple, Union
+from typing import Any, Callable, Optional, Union
 from urllib.parse import urlparse
 
 import fsspec
@@ -14,9 +14,15 @@ from coqpit import Coqpit
 from trainer.logger import logger
 
 
-def get_user_data_dir(appname):
-    if sys.platform == "win32":
-        import winreg  # pylint: disable=import-outside-toplevel, import-error
+def get_user_data_dir(appname: str) -> Path:
+    TTS_HOME = os.environ.get("TTS_HOME")
+    XDG_DATA_HOME = os.environ.get("XDG_DATA_HOME")
+    if TTS_HOME is not None:
+        ans = Path(TTS_HOME).expanduser().resolve(strict=False)
+    elif XDG_DATA_HOME is not None:
+        ans = Path(XDG_DATA_HOME).expanduser().resolve(strict=False)
+    elif sys.platform == "win32":
+        import winreg  # pylint: disable=import-outside-toplevel
 
         key = winreg.OpenKey(
             winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders"
@@ -30,9 +36,8 @@ def get_user_data_dir(appname):
     return ans.joinpath(appname)
 
 
-def copy_model_files(config: Coqpit, out_path, new_fields):
-    """Copy config.json and other model files to training folder and add
-    new fields.
+def copy_model_files(config: Coqpit, out_path: Union[str, os.PathLike[Any]], new_fields: dict) -> None:
+    """Copy config.json and other model files to training folder and add new fields.
 
     Args:
         config (Coqpit): Coqpit config defining the training run.
@@ -49,17 +54,19 @@ def copy_model_files(config: Coqpit, out_path, new_fields):
 
 
 def load_fsspec(
-    path: str,
-    map_location: Union[str, Callable, torch.device, Dict[Union[str, torch.device], Union[str, torch.device]]] = None,
+    path: Union[str, os.PathLike[Any]],
+    map_location: Union[str, Callable, torch.device, dict[Union[str, torch.device], Union[str, torch.device]]] = None,
     cache: bool = True,
     **kwargs,
 ) -> Any:
     """Like torch.load but can load from other locations (e.g. s3:// , gs://).
+
     Args:
         path: Any path or url supported by fsspec.
         map_location: torch.device or str.
         cache: If True, cache a remote file locally for subsequent calls. It is cached under `get_user_data_dir()/trainer_cache`. Defaults to True.
         **kwargs: Keyword arguments forwarded to torch.load.
+
     Returns:
         Object stored in path.
     """
@@ -72,12 +79,18 @@ def load_fsspec(
         ) as f:
             return torch.load(f, map_location=map_location, **kwargs)
     else:
-        with fsspec.open(path, "rb") as f:
+        with fsspec.open(str(path), "rb") as f:
             return torch.load(f, map_location=map_location, **kwargs)
 
 
-def load_checkpoint(model, checkpoint_path, use_cuda=False, eval=False):  # pylint: disable=redefined-builtin
-    state = load_fsspec(checkpoint_path, map_location=torch.device("cpu"))
+def load_checkpoint(
+    model: torch.nn.Module,
+    checkpoint_path: Union[str, os.PathLike[Any]],
+    use_cuda: bool = False,
+    eval: bool = False,
+    cache: bool = False,
+) -> tuple[torch.nn.Module, Any]:  # pylint: disable=redefined-builtin
+    state = load_fsspec(checkpoint_path, map_location=torch.device("cpu"), cache=cache)
     model.load_state_dict(state["model"])
     if use_cuda:
         model.cuda()
@@ -86,7 +99,7 @@ def load_checkpoint(model, checkpoint_path, use_cuda=False, eval=False):  # pyli
     return model, state
 
 
-def save_fsspec(state: Any, path: str, **kwargs):
+def save_fsspec(state: Any, path: Union[str, os.PathLike[Any]], **kwargs) -> None:
     """Like torch.save but can save to other locations (e.g. s3:// , gs://).
 
     Args:
@@ -94,11 +107,21 @@ def save_fsspec(state: Any, path: str, **kwargs):
         path: Any path or url supported by fsspec.
         **kwargs: Keyword arguments forwarded to torch.save.
     """
-    with fsspec.open(path, "wb") as f:
+    with fsspec.open(str(path), "wb") as f:
         torch.save(state, f, **kwargs)
 
 
-def save_model(config, model, optimizer, scaler, current_step, epoch, output_path, save_func, **kwargs):
+def save_model(
+    config: Union[dict, Coqpit],
+    model: torch.nn.Module,
+    optimizer: torch.optim.Optimizer,
+    scaler,
+    current_step: int,
+    epoch: int,
+    output_path: Union[str, os.PathLike[Any]],
+    save_func: Optional[Callable] = None,
+    **kwargs,
+) -> None:
     if hasattr(model, "module"):
         model_state = model.module.state_dict()
     else:
@@ -128,22 +151,22 @@ def save_model(config, model, optimizer, scaler, current_step, epoch, output_pat
         "date": datetime.date.today().strftime("%B %d, %Y"),
     }
     state.update(kwargs)
-    if save_func:
+    if save_func is not None:
         save_func(state, output_path)
     else:
         save_fsspec(state, output_path)
 
 
 def save_checkpoint(
-    config,
-    model,
-    optimizer,
+    config: Union[dict, Coqpit],
+    model: torch.nn.Module,
+    optimizer: torch.optim.Optimizer,
     scaler,
-    current_step,
-    epoch,
-    output_folder,
-    save_n_checkpoints=None,
-    save_func=None,
+    current_step: int,
+    epoch: int,
+    output_folder: Union[str, os.PathLike[Any]],
+    save_n_checkpoints: Optional[int] = None,
+    save_func: Optional[Callable] = None,
     **kwargs,
 ):
     file_name = f"checkpoint_{current_step}.pth"
@@ -166,20 +189,20 @@ def save_checkpoint(
 
 
 def save_best_model(
-    current_loss,
-    best_loss,
-    config,
-    model,
-    optimizer,
+    current_loss: Union[dict, float],
+    best_loss: Union[dict, float],
+    config: Union[dict, Coqpit],
+    model: torch.nn.Module,
+    optimizer: torch.optim.Optimizer,
     scaler,
-    current_step,
-    epoch,
-    out_path,
-    keep_all_best=False,
-    keep_after=0,
-    save_func=None,
+    current_step: int,
+    epoch: int,
+    out_path: Union[str, os.PathLike[Any]],
+    keep_all_best: bool = False,
+    keep_after: int = 0,
+    save_func: Optional[Callable] = None,
     **kwargs,
-):
+) -> Union[dict, float]:
     if isinstance(current_loss, dict):
         use_eval_loss = current_loss["eval_loss"] is not None and best_loss["eval_loss"] is not None
         is_save_model = (use_eval_loss and current_loss["eval_loss"] < best_loss["eval_loss"]) or (
@@ -188,9 +211,7 @@ def save_best_model(
     else:
         is_save_model = current_loss < best_loss
 
-    if isinstance(keep_after, (int, float)):
-        keep_after = int(keep_after)
-        is_save_model = is_save_model and current_step > keep_after
+    is_save_model = is_save_model and current_step > keep_after
 
     if is_save_model:
         best_model_name = f"best_model_{current_step}.pth"
@@ -208,7 +229,7 @@ def save_best_model(
             save_func=save_func,
             **kwargs,
         )
-        fs = fsspec.get_mapper(out_path).fs
+        fs = fsspec.get_mapper(str(out_path)).fs
         # only delete previous if current is saved successfully
         if not keep_all_best or (current_step < keep_after):
             model_names = fs.glob(os.path.join(out_path, "best_model*.pth"))
@@ -223,7 +244,7 @@ def save_best_model(
     return best_loss
 
 
-def get_last_checkpoint(path: str) -> Tuple[str, str]:
+def get_last_checkpoint(path: Union[str, os.PathLike]) -> tuple[str, str]:
     """Get latest checkpoint or/and best model in path.
 
     It is based on globbing for `*.pth` and the RegEx
@@ -239,6 +260,7 @@ def get_last_checkpoint(path: str) -> Tuple[str, str]:
         Path to the last checkpoint
         Path to best checkpoint
     """
+    path = str(path)
     fs = fsspec.get_mapper(path).fs
     file_names = fs.glob(os.path.join(path, "*.pth"))
     scheme = urlparse(path).scheme
@@ -288,31 +310,39 @@ def get_last_checkpoint(path: str) -> Tuple[str, str]:
     return last_models["checkpoint"], last_models["best_model"]
 
 
-def keep_n_checkpoints(path: str, n: int) -> None:
+def keep_n_checkpoints(path: Union[str, os.PathLike[Any]], n: int) -> None:
     """Keep only the last n checkpoints in path.
 
     Args:
         path: Path to files to be compared.
         n: Number of checkpoints to keep.
     """
-    fs = fsspec.get_mapper(path).fs
+    fs = fsspec.get_mapper(str(path)).fs
     file_names = sort_checkpoints(path, "checkpoint")
     if len(file_names) > n:
         for file_name in file_names[:-n]:
             fs.rm(file_name)
 
 
-def sort_checkpoints(output_path: str, checkpoint_prefix: str, use_mtime: bool = False) -> List[str]:
+def sort_checkpoints(
+    output_path: Union[str, os.PathLike[Any]], checkpoint_prefix: str, use_mtime: bool = False
+) -> list[str]:
     """Sort checkpoint paths based on the checkpoint step number.
 
     Args:
-        output_path (str): Path to directory containing checkpoints.
+        output_path: Path to directory containing checkpoints.
         checkpoint_prefix (str): Prefix of the checkpoint files.
         use_mtime (bool): If True, use modification dates to determine checkpoint order.
     """
     ordering_and_checkpoint_path = []
 
-    glob_checkpoints = [str(x) for x in Path(output_path).glob(f"{checkpoint_prefix}_*")]
+    output_path = str(output_path)
+    fs = fsspec.get_mapper(output_path).fs
+    glob_checkpoints = fs.glob(os.path.join(output_path, f"{checkpoint_prefix}_*"))
+    scheme = urlparse(output_path).scheme
+    if scheme and output_path.startswith(scheme + "://"):
+        # scheme is not preserved in fs.glob, add it back if it exists on the path
+        glob_checkpoints = [scheme + "://" + file_name for file_name in glob_checkpoints]
 
     for path in glob_checkpoints:
         if use_mtime:

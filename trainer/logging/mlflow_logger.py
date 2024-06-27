@@ -2,6 +2,7 @@ import os
 import shutil
 import tempfile
 import traceback
+from typing import Optional
 
 import soundfile as sf
 import torch
@@ -23,7 +24,7 @@ class MLFlowLogger(BaseDashboardLogger):
         self,
         log_uri: str,
         model_name: str,
-        tags: str = None,
+        tags: Optional[str] = None,
     ):
         self.model_name = model_name
         self.client = MlflowClient(tracking_uri=os.path.join(log_uri))

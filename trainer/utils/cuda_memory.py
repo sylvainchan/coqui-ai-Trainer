@@ -5,8 +5,6 @@ Helper to free Torch cuda memory and determine when a Torch exception might be
 because of OOM conditions.
 """
 
-from __future__ import print_function
-
 import gc
 
 import torch

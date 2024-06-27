@@ -8,9 +8,8 @@ import sys
 import time
 import traceback
 from contextlib import nullcontext
-from dataclasses import dataclass, field
 from inspect import signature
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Optional, Union
 
 import torch
 import torch.distributed as dist
@@ -20,6 +19,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP_th
 from torch.utils.data import DataLoader
 
 from trainer.callbacks import TrainerCallback
+from trainer.config import TrainerArgs
 from trainer.generic_utils import (
     KeepAverage,
     count_parameters,
@@ -38,6 +38,7 @@ from trainer.io import (
     save_checkpoint,
 )
 from trainer.logging import ConsoleLogger, DummyLogger, logger_factory
+from trainer.logging.base_dash_logger import BaseDashboardLogger
 from trainer.trainer_utils import (
     get_optimizer,
     get_scheduler,
@@ -59,230 +60,6 @@ if is_apex_available():
     from apex import amp  # pylint: disable=import-error
 
 
-@dataclass
-class TrainerConfig(Coqpit):
-    """Config fields tweaking the Trainer for a model.
-
-    A ````ModelConfig```, by inheriting ```TrainerConfig``` must be defined for using 👟.
-    Inherit this by a new model config and override the fields as needed.
-    All the fields can be overridden from comman-line as ```--coqpit.arg_name=value```.
-
-    Example::
-
-        Run the training code by overriding the ```lr``` and ```plot_step``` fields.
-
-        >>> python train.py --coqpit.plot_step=22 --coqpit.lr=0.001
-
-        Defining a model using ```TrainerConfig```.
-
-        >>> from trainer import TrainerConfig
-        >>> class MyModelConfig(TrainerConfig):
-        ...     optimizer: str = "Adam"
-        ...     lr: float = 0.001
-        ...     epochs: int = 1
-        ...     ...
-        >>> class MyModel(nn.module):
-        ...    def __init__(self, config):
-        ...        ...
-        >>> model = MyModel(MyModelConfig())
-
-    """
-
-    # Fields for the run
-    output_path: str = field(default="output")
-    logger_uri: str = field(
-        default=None,
-        metadata={
-            "help": "URI to save training artifacts by the logger. If not set, logs will be saved in the output_path. Defaults to None"
-        },
-    )
-    run_name: str = field(default="run", metadata={"help": "Name of the run. Defaults to 'run'"})
-    project_name: str = field(default=None, metadata={"help": "Name of the project. Defaults to None"})
-    run_description: str = field(
-        default="🐸Coqui trainer run.",
-        metadata={"help": "Notes and description about the run. Defaults to '🐸Coqui trainer run.'"},
-    )
-    # Fields for logging
-    print_step: int = field(
-        default=25, metadata={"help": "Print training stats on the terminal every print_step steps. Defaults to 25"}
-    )
-    plot_step: int = field(
-        default=100, metadata={"help": "Plot training stats on the logger every plot_step steps. Defaults to 100"}
-    )
-    model_param_stats: bool = field(
-        default=False, metadata={"help": "Log model parameters stats on the logger dashboard. Defaults to False"}
-    )
-    wandb_entity: str = field(default=None, metadata={"help": "Wandb entity to log the run. Defaults to None"})
-    dashboard_logger: str = field(
-        default="tensorboard", metadata={"help": "Logger to use for the tracking dashboard. Defaults to 'tensorboard'"}
-    )
-    # Fields for checkpointing
-    save_on_interrupt: bool = field(
-        default=True, metadata={"help": "Save checkpoint on interrupt (Ctrl+C). Defaults to True"}
-    )
-    log_model_step: int = field(
-        default=None,
-        metadata={
-            "help": "Save checkpoint to the logger every log_model_step steps. If not defined `save_step == log_model_step`."
-        },
-    )
-    save_step: int = field(
-        default=10000, metadata={"help": "Save local checkpoint every save_step steps. Defaults to 10000"}
-    )
-    save_n_checkpoints: int = field(default=5, metadata={"help": "Keep n local checkpoints. Defaults to 5"})
-    save_checkpoints: bool = field(default=True, metadata={"help": "Save checkpoints locally. Defaults to True"})
-    save_all_best: bool = field(
-        default=False, metadata={"help": "Save all best checkpoints and keep the older ones. Defaults to False"}
-    )
-    save_best_after: int = field(default=0, metadata={"help": "Wait N steps to save best checkpoints. Defaults to 0"})
-    target_loss: str = field(
-        default=None, metadata={"help": "Target loss name to select the best model. Defaults to None"}
-    )
-    # Fields for eval and test run
-    print_eval: bool = field(default=False, metadata={"help": "Print eval steps on the terminal. Defaults to False"})
-    test_delay_epochs: int = field(default=0, metadata={"help": "Wait N epochs before running the test. Defaults to 0"})
-    run_eval: bool = field(
-        default=True, metadata={"help": "Run evalulation epoch after training epoch. Defaults to True"}
-    )
-    run_eval_steps: int = field(
-        default=None,
-        metadata={
-            "help": "Run evalulation epoch after N steps. If None, waits until training epoch is completed. Defaults to None"
-        },
-    )
-    # Fields for distributed training
-    distributed_backend: str = field(
-        default="nccl", metadata={"help": "Distributed backend to use. Defaults to 'nccl'"}
-    )
-    distributed_url: str = field(
-        default="tcp://localhost:54321",
-        metadata={"help": "Distributed url to use. Defaults to 'tcp://localhost:54321'"},
-    )
-    # Fields for training specs
-    mixed_precision: bool = field(default=False, metadata={"help": "Use mixed precision training. Defaults to False"})
-    precision: str = field(
-        default="fp16",
-        metadata={
-            "help": "Precision to use in mixed precision training. `fp16` for float16 and `bf16` for bfloat16. Defaults to 'f16'"
-        },
-    )
-    epochs: int = field(default=1000, metadata={"help": "Number of epochs to train. Defaults to 1000"})
-    batch_size: int = field(default=32, metadata={"help": "Batch size to use. Defaults to 32"})
-    eval_batch_size: int = field(default=16, metadata={"help": "Batch size to use for eval. Defaults to 16"})
-    grad_clip: float = field(
-        default=0.0, metadata={"help": "Gradient clipping value. Disabled if <= 0. Defaults to 0.0"}
-    )
-    scheduler_after_epoch: bool = field(
-        default=True,
-        metadata={"help": "Step the scheduler after each epoch else step after each iteration. Defaults to True"},
-    )
-    # Fields for optimzation
-    lr: Union[float, List[float]] = field(
-        default=0.001, metadata={"help": "Learning rate for each optimizer. Defaults to 0.001"}
-    )
-    optimizer: Union[str, List[str]] = field(default=None, metadata={"help": "Optimizer(s) to use. Defaults to None"})
-    optimizer_params: Union[Dict, List[Dict]] = field(
-        default_factory=dict, metadata={"help": "Optimizer(s) arguments. Defaults to {}"}
-    )
-    lr_scheduler: Union[str, List[str]] = field(
-        default=None, metadata={"help": "Learning rate scheduler(s) to use. Defaults to None"}
-    )
-    lr_scheduler_params: Dict = field(
-        default_factory=dict, metadata={"help": "Learning rate scheduler(s) arguments. Defaults to {}"}
-    )
-    use_grad_scaler: bool = field(
-        default=False,
-        metadata={
-            "help": "Enable/disable gradient scaler explicitly. It is enabled by default with AMP training. Defaults to False"
-        },
-    )
-    allow_tf32: bool = field(
-        default=False,
-        metadata={
-            "help": "A bool that controls whether TensorFloat-32 tensor cores may be used in matrix multiplications on Ampere or newer GPUs. Default to False."
-        },
-    )
-    cudnn_enable: bool = field(default=True, metadata={"help": "Enable/disable cudnn explicitly. Defaults to True"})
-    cudnn_deterministic: bool = field(
-        default=False,
-        metadata={
-            "help": "Enable/disable deterministic cudnn operations. Set this True for reproducibility but it slows down training significantly.  Defaults to False."
-        },
-    )
-    cudnn_benchmark: bool = field(
-        default=False,
-        metadata={
-            "help": "Enable/disable cudnn benchmark explicitly. Set this False if your input size change constantly. Defaults to False"
-        },
-    )
-    training_seed: int = field(
-        default=54321,
-        metadata={"help": "Global seed for torch, random and numpy random number generator. Defaults to 54321"},
-    )
-
-
-@dataclass
-class TrainerArgs(Coqpit):
-    """Trainer arguments that can be accessed from the command line.
-
-    Examples::
-        >>> python train.py --restore_path /path/to/checkpoint.pth
-    """
-
-    continue_path: str = field(
-        default="",
-        metadata={
-            "help": "Path to a training folder to continue training. Restore the model from the last checkpoint and continue training under the same folder."
-        },
-    )
-    restore_path: str = field(
-        default="",
-        metadata={
-            "help": "Path to a model checkpoit. Restore the model with the given checkpoint and start a new training."
-        },
-    )
-    best_path: str = field(
-        default="",
-        metadata={
-            "help": "Best model file to be used for extracting the best loss. If not specified, the latest best model in continue path is used"
-        },
-    )
-    use_ddp: bool = field(
-        default=False,
-        metadata={"help": "Use DDP in distributed training. It is to set in `distribute.py`. Do not set manually."},
-    )
-    use_accelerate: bool = field(default=False, metadata={"help": "Use HF Accelerate as the back end for training."})
-    grad_accum_steps: int = field(
-        default=1,
-        metadata={
-            "help": "Number of gradient accumulation steps. It is used to accumulate gradients over multiple batches."
-        },
-    )
-    overfit_batch: bool = field(default=False, metadata={"help": "Overfit a single batch for debugging."})
-    skip_train_epoch: bool = field(
-        default=False,
-        metadata={"help": "Skip training and only run evaluation and test."},
-    )
-    start_with_eval: bool = field(
-        default=False,
-        metadata={"help": "Start with evaluation and test."},
-    )
-    small_run: int = field(
-        default=None,
-        metadata={
-            "help": "Only use a subset of the samples for debugging. Set the number of samples to use. Defaults to None. "
-        },
-    )
-    gpu: int = field(
-        default=None, metadata={"help": "GPU ID to use if ```CUDA_VISIBLE_DEVICES``` is not set. Defaults to None."}
-    )
-    # only for DDP
-    rank: int = field(default=0, metadata={"help": "Process rank in a distributed training. Don't set manually."})
-    group_id: str = field(
-        default="", metadata={"help": "Process group id in a distributed training. Don't set manually."}
-    )
-
-
 class Trainer:
     def __init__(  # pylint: disable=dangerous-default-value
         self,
@@ -290,19 +67,19 @@ class Trainer:
         config: Coqpit,
         output_path: str,
         c_logger: ConsoleLogger = None,
-        dashboard_logger: "Logger" = None,
+        dashboard_logger: BaseDashboardLogger = None,
         model: nn.Module = None,
-        get_model: Callable = None,
-        get_data_samples: Callable = None,
-        train_samples: List = None,
-        eval_samples: List = None,
-        test_samples: List = None,
+        get_model: Optional[Callable] = None,
+        get_data_samples: Optional[Callable] = None,
+        train_samples: Optional[list] = None,
+        eval_samples: Optional[list] = None,
+        test_samples: Optional[list] = None,
         train_loader: DataLoader = None,
         eval_loader: DataLoader = None,
-        training_assets: Dict = {},
+        training_assets: Optional[dict] = None,
         parse_command_line_args: bool = True,
-        callbacks: Dict[str, Callable] = {},
-        gpu: int = None,
+        callbacks: Optional[dict[str, Callable]] = None,
+        gpu: Optional[int] = None,
     ) -> None:
         """Simple yet powerful 🐸💬 TTS trainer for PyTorch.
 
@@ -390,6 +167,11 @@ class Trainer:
                 - Overfitting to a batch.
                 - TPU training
         """
+        if training_assets is None:
+            training_assets = {}
+        if callbacks is None:
+            callbacks = {}
+
         if parse_command_line_args:
             # parse command-line arguments to override TrainerArgs()
             args, coqpit_overrides = self.parse_argv(args)
@@ -533,7 +315,7 @@ class Trainer:
             and not isimplemented(self.model, "optimize")
         ):
             raise ValueError(
-                " [!] Coqui Trainer does not support grad_accum_steps for multiple-optimizer setup, please set grad_accum_steps to 1 or implement in your model a custom method called ´optimize` that need to deal with dangling gradients in multiple-optimizer setup!"
+                " [!] Coqui Trainer does not support grad_accum_steps for multiple-optimizer setup, please set grad_accum_steps to 1 or implement in your model a custom method called `optimize` that need to deal with dangling gradients in multiple-optimizer setup!"
             )
 
         # CALLBACK
@@ -661,12 +443,12 @@ class Trainer:
         if os.path.isfile(file_path):
             file_name = os.path.basename(file_path)
             self.dashboard_logger.add_artifact(file_or_dir=file_path, name=file_name, artifact_type="file")
-            with open(file_path, "r", encoding="utf8") as f:
+            with open(file_path, encoding="utf8") as f:
                 self.dashboard_logger.add_text("training-script", f"{f.read()}", 0)
             shutil.copyfile(file_path, os.path.join(self.output_path, file_name))
 
     @staticmethod
-    def parse_argv(args: Union[Coqpit, List]):
+    def parse_argv(args: Union[Coqpit, list]):
         """Parse command line arguments to init or override `TrainerArgs()`."""
         if isinstance(args, Coqpit):
             parser = args.init_argparse(arg_prefix="")
@@ -713,8 +495,8 @@ class Trainer:
 
     @staticmethod
     def init_training(
-        args: TrainerArgs, coqpit_overrides: Dict, config: Coqpit = None
-    ) -> Tuple[Coqpit, Dict[str, str]]:
+        args: TrainerArgs, coqpit_overrides: dict, config: Coqpit = None
+    ) -> tuple[Coqpit, dict[str, str]]:
         """Initialize training and update model configs from command line arguments.
 
         Args:
@@ -752,7 +534,7 @@ class Trainer:
         return config, new_fields
 
     @staticmethod
-    def setup_training_environment(args, config, gpu) -> Tuple[bool, int]:
+    def setup_training_environment(args, config, gpu) -> tuple[bool, int]:
         if platform.system() != "Windows":
             # https://github.com/pytorch/pytorch/issues/973
             import resource  # pylint: disable=import-outside-toplevel
@@ -804,11 +586,11 @@ class Trainer:
     def restore_model(
         self,
         config: Coqpit,
-        restore_path: str,
+        restore_path: Union[str, os.PathLike[Any]],
         model: nn.Module,
         optimizer: torch.optim.Optimizer,
         scaler: torch.cuda.amp.GradScaler = None,
-    ) -> Tuple[nn.Module, torch.optim.Optimizer, torch.cuda.amp.GradScaler, int]:
+    ) -> tuple[nn.Module, torch.optim.Optimizer, torch.cuda.amp.GradScaler, int]:
         """Restore training from an old run. It restores model, optimizer, AMP scaler and training stats.
 
         Args:
@@ -886,9 +668,9 @@ class Trainer:
         self,
         model: nn.Module,
         config: Coqpit,
-        assets: Dict,
+        assets: dict,
         is_eval: bool,
-        samples: List,
+        samples: list,
         verbose: bool,
         num_gpus: int,
     ) -> DataLoader:
@@ -913,7 +695,7 @@ class Trainer:
         ), " ❗ len(DataLoader) returns 0. Make sure your dataset is not empty or len(dataset) > 0. "
         return loader
 
-    def get_train_dataloader(self, training_assets: Dict, samples: List, verbose: bool) -> DataLoader:
+    def get_train_dataloader(self, training_assets: dict, samples: list, verbose: bool) -> DataLoader:
         """Initialize and return a training data loader.
 
         Call ```model.get_train_data_loader``` if it is implemented, else call ```model.get_data_loader```
@@ -950,7 +732,7 @@ class Trainer:
             self.num_gpus,
         )
 
-    def get_eval_dataloader(self, training_assets: Dict, samples: List, verbose: bool) -> DataLoader:
+    def get_eval_dataloader(self, training_assets: dict, samples: list, verbose: bool) -> DataLoader:
         """Initialize and return a evaluation data loader.
 
         Call ```model.get_eval_data_loader``` if it is implemented, else call ```model.get_data_loader```
@@ -987,7 +769,7 @@ class Trainer:
             self.num_gpus,
         )
 
-    def get_test_dataloader(self, training_assets: Dict, samples: List, verbose: bool) -> DataLoader:
+    def get_test_dataloader(self, training_assets: dict, samples: list, verbose: bool) -> DataLoader:
         """Initialize and return a evaluation data loader.
 
         Call ```model.get_test_data_loader``` if it is implemented, else call ```model.get_data_loader```
@@ -1024,7 +806,7 @@ class Trainer:
             self.num_gpus,
         )
 
-    def format_batch(self, batch: List) -> Dict:
+    def format_batch(self, batch: list) -> dict:
         """Format the dataloader output and return a batch.
 
         1. Call ```model.format_batch```.
@@ -1078,8 +860,8 @@ class Trainer:
 
     @staticmethod
     def _model_train_step(
-        batch: Dict, model: nn.Module, criterion: nn.Module, optimizer_idx: Optional[int] = None
-    ) -> Tuple[Dict, Dict]:
+        batch: dict, model: nn.Module, criterion: nn.Module, optimizer_idx: Optional[int] = None
+    ) -> tuple[dict, dict]:
         """Perform a trainig forward step. Compute model outputs and losses.
 
         Args:
@@ -1118,7 +900,7 @@ class Trainer:
 
     def detach_loss_dict(
         self,
-        loss_dict: Dict,
+        loss_dict: dict,
         step_optimizer: bool,
         optimizer_idx: Optional[int] = None,
         grad_norm: Optional[float] = None,
@@ -1136,7 +918,7 @@ class Trainer:
                 loss_dict_detached["grad_norm"] = grad_norm
         return loss_dict_detached
 
-    def _compute_loss(self, batch: Dict, model: nn.Module, criterion: nn.Module, config: Coqpit, optimizer_idx: int):
+    def _compute_loss(self, batch: dict, model: nn.Module, criterion: nn.Module, config: Coqpit, optimizer_idx: int):
         device, dtype = self._get_autocast_args(config.mixed_precision, config.precision)
         with torch.autocast(device_type=device, dtype=dtype, enabled=config.mixed_precision):
             if optimizer_idx is not None:
@@ -1162,7 +944,7 @@ class Trainer:
     def _compute_grad_norm(self, optimizer: torch.optim.Optimizer):
         return torch.norm(torch.cat([param.grad.view(-1) for param in self.master_params(optimizer)], dim=0), p=2)
 
-    def _grad_clipping(self, grad_clip: float, optimizer: torch.optim.Optimizer, scaler: "AMPScaler"):
+    def _grad_clipping(self, grad_clip: float, optimizer: torch.optim.Optimizer, scaler: torch.amp.GradScaler):
         """Perform gradient clipping"""
         if grad_clip is not None and grad_clip > 0:
             if scaler:
@@ -1175,17 +957,17 @@ class Trainer:
 
     def optimize(
         self,
-        batch: Dict,
+        batch: dict,
         model: nn.Module,
         optimizer: torch.optim.Optimizer,
-        scaler: "AMPScaler",
+        scaler: torch.amp.GradScaler,
         criterion: nn.Module,
-        scheduler: Union[torch.optim.lr_scheduler._LRScheduler, List, Dict],  # pylint: disable=protected-access
+        scheduler: Union[torch.optim.lr_scheduler._LRScheduler, list, dict],  # pylint: disable=protected-access
         config: Coqpit,
         optimizer_idx: Optional[int] = None,
         step_optimizer: bool = True,
         num_optimizers: int = 1,
-    ) -> Tuple[Dict, Dict, int]:
+    ) -> tuple[dict, dict, int]:
         """Perform a forward - backward pass and run the optimizer.
 
         Args:
@@ -1297,7 +1079,7 @@ class Trainer:
         loss_dict_detached = self.detach_loss_dict(loss_dict, step_optimizer, optimizer_idx, grad_norm)
         return outputs, loss_dict_detached, step_time
 
-    def train_step(self, batch: Dict, batch_n_steps: int, step: int, loader_start_time: float) -> Tuple[Dict, Dict]:
+    def train_step(self, batch: dict, batch_n_steps: int, step: int, loader_start_time: float) -> tuple[dict, dict]:
         """Perform a training step on a batch of inputs and log the process.
 
         Args:
@@ -1417,11 +1199,11 @@ class Trainer:
             lrs = {}
             if isinstance(self.optimizer, list):
                 for idx, optimizer in enumerate(self.optimizer):
-                    current_lr = self.optimizer[idx].param_groups[0]["lr"]
+                    current_lr = optimizer.param_groups[0]["lr"]
                     lrs.update({f"current_lr_{idx}": current_lr})
             elif isinstance(self.optimizer, dict):
                 for key, optimizer in self.optimizer.items():
-                    current_lr = self.optimizer[key].param_groups[0]["lr"]
+                    current_lr = optimizer.param_groups[0]["lr"]
                     lrs.update({f"current_lr_{key}": current_lr})
             else:
                 current_lr = self.optimizer.param_groups[0]["lr"]
@@ -1533,8 +1315,8 @@ class Trainer:
     #######################
 
     def _model_eval_step(
-        self, batch: Dict, model: nn.Module, criterion: nn.Module, optimizer_idx: Optional[int] = None
-    ) -> Tuple[Dict, Dict]:
+        self, batch: dict, model: nn.Module, criterion: nn.Module, optimizer_idx: Optional[int] = None
+    ) -> tuple[dict, dict]:
         """Perform a evaluation forward pass. Compute model outputs and losses with no gradients.
 
         Args:
@@ -1560,7 +1342,7 @@ class Trainer:
 
         return model.eval_step(*input_args)
 
-    def eval_step(self, batch: Dict, step: int) -> Tuple[Dict, Dict]:
+    def eval_step(self, batch: dict, step: int) -> tuple[dict, dict]:
         """Perform a evaluation step on a batch of inputs and log the process.
 
         Args:
@@ -1762,7 +1544,7 @@ class Trainer:
 
         self.total_steps_done = self.restore_step
 
-        for epoch in range(0, self.config.epochs):
+        for epoch in range(self.config.epochs):
             if self.num_gpus > 1:
                 # let all processes sync up before starting with a new epoch of training
                 dist.barrier()
@@ -1969,7 +1751,7 @@ class Trainer:
     #####################
 
     @staticmethod
-    def get_optimizer(model: nn.Module, config: Coqpit) -> Union[torch.optim.Optimizer, List]:
+    def get_optimizer(model: nn.Module, config: Coqpit) -> Union[torch.optim.Optimizer, list]:
         """Receive the optimizer from the model if model implements `get_optimizer()` else
         check the optimizer parameters in the config and try initiating the optimizer.
 
@@ -1993,7 +1775,7 @@ class Trainer:
         return optimizer
 
     @staticmethod
-    def get_lr(model: nn.Module, config: Coqpit) -> Union[float, List[float]]:
+    def get_lr(model: nn.Module, config: Coqpit) -> Union[float, list[float]]:
         """Set the initial learning rate by the model if model implements `get_lr()` else try setting the learning rate
         fromthe config.
 
@@ -2016,8 +1798,8 @@ class Trainer:
 
     @staticmethod
     def get_scheduler(
-        model: nn.Module, config: Coqpit, optimizer: Union[torch.optim.Optimizer, List, Dict]
-    ) -> Union[torch.optim.lr_scheduler._LRScheduler, List]:  # pylint: disable=protected-access
+        model: nn.Module, config: Coqpit, optimizer: Union[torch.optim.Optimizer, list, dict]
+    ) -> Union[torch.optim.lr_scheduler._LRScheduler, list]:  # pylint: disable=protected-access
         """Receive the scheduler from the model if model implements `get_scheduler()` else
         check the config and try initiating the scheduler.
 
@@ -2046,8 +1828,12 @@ class Trainer:
 
     @staticmethod
     def restore_scheduler(
-        scheduler: Union["Scheduler", List, Dict], args: Coqpit, config: Coqpit, restore_epoch: int, restore_step: int
-    ) -> Union["Scheduler", List]:
+        scheduler: Union[torch.optim.lr_scheduler._LRScheduler, list, dict],
+        args: Coqpit,
+        config: Coqpit,
+        restore_epoch: int,
+        restore_step: int,
+    ) -> Union[torch.optim.lr_scheduler._LRScheduler, list]:
         """Restore scheduler wrt restored model."""
         if scheduler is not None and args.continue_path:
             if isinstance(scheduler, list):
@@ -2087,7 +1873,7 @@ class Trainer:
     ####################
 
     @staticmethod
-    def _detach_loss_dict(loss_dict: Dict) -> Dict:
+    def _detach_loss_dict(loss_dict: dict) -> dict:
         """Detach loss values from autograp.
 
         Args:
@@ -2104,7 +1890,7 @@ class Trainer:
                 loss_dict_detached[key] = value.detach().cpu().item()
         return loss_dict_detached
 
-    def _pick_target_avg_loss(self, keep_avg_target: KeepAverage) -> Dict:
+    def _pick_target_avg_loss(self, keep_avg_target: KeepAverage) -> dict:
         """Pick the target loss to compare models"""
 
         # if the keep_avg_target is None or empty return None

@@ -1,32 +1,99 @@
 [build-system]
-requires = ["setuptools", "wheel"]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
 
-[flake8]
-max-line-length=120
+[tool.setuptools.packages.find]
+include = ["trainer*"]
 
-[tool.black]
+[project]
+name = "coqui-tts-trainer"
+version = "0.1.2"
+description = "General purpose model trainer for PyTorch that is more flexible than it should be, by 🐸Coqui."
+readme = "README.md"
+requires-python = ">=3.9, <3.13"
+license = {text = "Apache-2.0"}
+authors = [
+    {name = "Eren Gölge", email = "egolge@coqui.ai"}
+]
+maintainers = [
+    {name = "Enno Hermann", email = "enno.hermann@gmail.com"}
+]
+classifiers = [
+    "Environment :: Console",
+    "Natural Language :: English",
+    # How mature is this project? Common values are
+    #   3 - Alpha, 4 - Beta, 5 - Production/Stable
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "coqpit",
+    "fsspec",
+    "numpy",
+    "psutil",
+    "soundfile",
+    "tensorboard",
+    "torch>=2.0",
+]
+
+[project.optional-dependencies]
+# Development dependencies
+dev = [
+    "coverage",
+    "pre-commit",
+    "pytest",
+    "ruff==0.4.10",
+    "tomli; python_version < '3.11'",
+]
+# Dependencies for running the tests
+test = [
+    "accelerate",
+    "torchvision",
+]
+
+[project.urls]
+Homepage = "https://github.com/idiap/coqui-ai-Trainer"
+Repository = "https://github.com/idiap/coqui-ai-Trainer"
+Issues = "https://github.com/idiap/coqui-ai-Trainer/issues"
+
+[tool.ruff]
 line-length = 120
-target-version = ['py38']
-exclude = '''
+target-version = "py39"
+lint.extend-select = [
+    "B",  # bugbear
+    "I",  # import sorting
+    "PIE",
+    "PLC",
+    "PLE",
+    "PLW",
+    "RUF",
+    "UP",  # pyupgrade
+]
 
-(
-  /(
-      \.eggs         # exclude a few common directories in the
-    | \.git          # root of the project
-    | \.hg
-    | \.mypy_cache
-    | \.tox
-    | \.venv
-    | _build
-    | buck-out
-    | build
-    | dist
-  )/
-  | foo.py           # also separately exclude a file named foo.py in
-                     # the root of the project
-)
-'''
+lint.ignore = [
+    "F821",  # TODO: enable
+    "PLW2901",  # TODO: enable
+    "UP032",  # TODO: enable
+]
 
-[tool.isort]
-profile = "black"
-multi_line_output = 3
+[tool.ruff.lint.per-file-ignores]
+"**/__init__.py" = [
+    "F401", # init files may have "unused" imports for now
+    "F403", # init files may have star imports for now
+]
+
+[tool.coverage.run]
+parallel = true
+source = ["trainer"]

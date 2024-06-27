@@ -1,3 +1,5 @@
+from typing import Optional
+
 import torch
 
 from trainer.logging.base_dash_logger import BaseDashboardLogger
@@ -15,7 +17,7 @@ class AimLogger(BaseDashboardLogger):
         self,
         repo: str,
         model_name: str,
-        tags: str = None,
+        tags: Optional[str] = None,
     ):
         self._context = None
         self.model_name = model_name

@@ -1,7 +1,7 @@
-# -*- coding: utf-8 -*-
 import datetime
 import os
 import subprocess
+from typing import Any, Union
 
 import fsspec
 import torch
@@ -9,14 +9,14 @@ import torch
 from trainer.logger import logger
 
 
-def isimplemented(obj, method_name):
+def isimplemented(obj, method_name) -> bool:
     """Check if a method is implemented in a class."""
     if method_name in dir(obj) and callable(getattr(obj, method_name)):
         try:
             obj.__getattribute__(method_name)()  # pylint: disable=bad-option-value, unnecessary-dunder-call
         except NotImplementedError:
             return False
-        except:  # pylint: disable=bare-except
+        except Exception:
             return True
         return True
     return False
@@ -38,19 +38,19 @@ def get_cuda():
     return use_cuda, device
 
 
-def get_git_branch():
+def get_git_branch() -> str:
     try:
         out = subprocess.check_output(["git", "branch"]).decode("utf8")
         current = next(line for line in out.split("\n") if line.startswith("*"))
         current.replace("* ", "")
     except subprocess.CalledProcessError:
         current = "inside_docker"
-    except FileNotFoundError:
+    except (FileNotFoundError, StopIteration):
         current = "unknown"
     return current
 
 
-def get_commit_hash():
+def get_commit_hash() -> str:
     """https://stackoverflow.com/questions/14989858/get-the-current-git-hash-in-a-python-script"""
     try:
         commit = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"]).decode().strip()
@@ -60,7 +60,7 @@ def get_commit_hash():
     return commit
 
 
-def get_experiment_folder_path(root_path, model_name):
+def get_experiment_folder_path(root_path: Union[str, os.PathLike[Any]], model_name: str) -> str:
     """Get an experiment folder path with the current date and time"""
     date_str = datetime.datetime.now().strftime("%B-%d-%Y_%I+%M%p")
     commit_hash = get_commit_hash()
@@ -68,8 +68,9 @@ def get_experiment_folder_path(root_path, model_name):
     return output_folder
 
 
-def remove_experiment_folder(experiment_path):
+def remove_experiment_folder(experiment_path: Union[str, os.PathLike[Any]]) -> None:
     """Check folder if there is a checkpoint, otherwise remove the folder"""
+    experiment_path = str(experiment_path)
     fs = fsspec.get_mapper(experiment_path).fs
     checkpoint_files = fs.glob(experiment_path + "/*.pth")
     if not checkpoint_files:
@@ -80,14 +81,14 @@ def remove_experiment_folder(experiment_path):
         logger.info(" ! Run is kept in %s", experiment_path)
 
 
-def count_parameters(model):
+def count_parameters(model: torch.nn.Module) -> int:
     r"""Count number of trainable parameters in a network"""
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
 def set_partial_state_dict(model_dict, checkpoint_state, c):
     # Partial initialization: if there is a mismatch with new and old layer, it is skipped.
-    for k, v in checkpoint_state.items():
+    for k in checkpoint_state:
         if k not in model_dict:
             logger.info(" | > Layer missing in the model definition: %s", k)
     for k in model_dict:

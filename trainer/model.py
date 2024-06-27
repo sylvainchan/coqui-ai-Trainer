@@ -1,10 +1,10 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Optional
 
 import torch
-from coqpit import Coqpit
 from torch import nn
 
+from trainer.trainer import Trainer
 from trainer.trainer_utils import is_apex_available
 
 if is_apex_available():
@@ -18,7 +18,7 @@ class TrainerModel(ABC, nn.Module):
     """Abstract 🐸TTS class. Every new 🐸TTS model must inherit this."""
 
     @abstractmethod
-    def forward(self, input: torch.Tensor, *args, aux_input={}, **kwargs) -> Dict:
+    def forward(self, input: torch.Tensor, *args, aux_input: Optional[dict[str, Any]] = None, **kwargs) -> dict:
         """Forward ... for the model mainly used in training.
 
         You can be flexible here and use different number of arguments and argument names since it is intended to be
@@ -31,11 +31,13 @@ class TrainerModel(ABC, nn.Module):
         Returns:
             Dict: Model outputs. Main model output must be named as "model_outputs".
         """
+        if aux_input is None:
+            aux_input = {}
         outputs_dict = {"model_outputs": None}
         ...
         return outputs_dict
 
-    def format_batch(self, batch: Dict) -> Dict:
+    def format_batch(self, batch: dict) -> dict:
         """Format batch returned by the data loader before sending it to the model.
 
         If not implemented, model uses the batch as is.
@@ -43,7 +45,7 @@ class TrainerModel(ABC, nn.Module):
         """
         return batch
 
-    def format_batch_on_device(self, batch: Dict) -> Dict:
+    def format_batch_on_device(self, batch: dict) -> dict:
         """Format batch on device before sending it to the model.
 
         If not implemented, model uses the batch as is.
@@ -51,7 +53,7 @@ class TrainerModel(ABC, nn.Module):
         """
         return batch
 
-    def train_step(self, *args: Any, **kwargs: Any) -> Tuple[Dict, Dict]:
+    def train_step(self, *args: Any, **kwargs: Any) -> tuple[dict, dict]:
         """Perform a single training step. Run the model forward ... and compute losses.
 
         Args:
@@ -62,7 +64,6 @@ class TrainerModel(ABC, nn.Module):
         Returns:
             Tuple[Dict, Dict]: Model ouputs and computed losses.
         """
-        ...
         raise NotImplementedError(" [!] `train_step()` is not implemented.")
 
     def train_log(self, *args: Any, **kwargs: Any) -> None:
@@ -81,7 +82,6 @@ class TrainerModel(ABC, nn.Module):
         Returns:
             Tuple[Dict, np.ndarray]: training plots and output waveform.
         """
-        ...
         raise NotImplementedError(" [!] `train_log()` is not implemented.")
 
     @torch.no_grad()
@@ -101,7 +101,6 @@ class TrainerModel(ABC, nn.Module):
 
     def eval_log(self, *args: Any, **kwargs: Any) -> None:
         """The same as `train_log()`"""
-        ...
         raise NotImplementedError(" [!] `eval_log()` is not implemented.")
 
     @abstractmethod
@@ -126,9 +125,8 @@ class TrainerModel(ABC, nn.Module):
 
     def init_for_training(self) -> None:
         """Initialize model for training."""
-        ...
 
-    def optimize(self, *args: Any, **kwargs: Any) -> Tuple[Dict, Dict, float]:
+    def optimize(self, *args: Any, **kwargs: Any) -> tuple[dict, dict, float]:
         """Model specific optimization step that must perform the following steps:
             1. Forward pass
             2. Compute loss
@@ -144,12 +142,11 @@ class TrainerModel(ABC, nn.Module):
         Returns:
             Tuple[Dict, Dict, float]: Model outputs, loss dictionary and grad_norm value.
         """
-        ...
         raise NotImplementedError(" [!] `optimize()` is not implemented.")
 
     def scaled_backward(
-        self, loss: torch.Tensor, trainer: "Trainer", optimizer: "Optimizer", *args: Any, **kwargs: Any
-    ) -> Tuple[float, bool]:
+        self, loss: torch.Tensor, trainer: Trainer, optimizer: torch.optim.Optimizer, *args: Any, **kwargs: Any
+    ) -> tuple[float, bool]:
         """Backward pass with gradient scaling for custom `optimize` calls.
 
         Args:

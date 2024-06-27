@@ -1,3 +1,5 @@
+from typing import Optional
+
 import numpy as np
 import torch
 from torch.utils.data.distributed import DistributedSampler
@@ -29,8 +31,8 @@ class DistributedSamplerWrapper(DistributedSampler):
     def __init__(
         self,
         sampler,
-        num_replicas: int = None,
-        rank: int = None,
+        num_replicas: Optional[int] = None,
+        rank: Optional[int] = None,
         shuffle: bool = True,
         seed: int = 0,
     ):
@@ -103,7 +105,7 @@ class StepwiseGradualLR(torch.optim.lr_scheduler._LRScheduler):
 
         boolean_indeces = np.less_equal(step_thresholds, step)
         try:
-            last_true = np.where(boolean_indeces == True)[0][-1]  # pylint: disable=singleton-comparison
+            last_true = np.where(boolean_indeces)[0][-1]  # pylint: disable=singleton-comparison
         except IndexError:
             # For the steps larger than the last step in the list
             pass

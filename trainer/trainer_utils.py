@@ -1,11 +1,12 @@
 import importlib
 import os
 import random
-from typing import Dict, List, Tuple
+from typing import Optional
 
 import numpy as np
 import torch
 
+from trainer.config import TrainerArgs
 from trainer.logger import logger
 from trainer.torch import NoamLR, StepwiseGradualLR
 from trainer.utils.distributed import rank_zero_logger_info
@@ -61,7 +62,7 @@ def print_training_env(args, config):
 
 
 def setup_torch_training_env(
-    args: "TrainerArgs",
+    args: TrainerArgs,
     cudnn_enable: bool,
     cudnn_benchmark: bool,
     cudnn_deterministic: bool,
@@ -69,7 +70,7 @@ def setup_torch_training_env(
     training_seed=54321,
     allow_tf32: bool = False,
     gpu=None,
-) -> Tuple[bool, int]:
+) -> tuple[bool, int]:
     """Setup PyTorch environment for training.
 
     Args:
@@ -119,7 +120,7 @@ def setup_torch_training_env(
 
 
 def get_scheduler(
-    lr_scheduler: str, lr_scheduler_params: Dict, optimizer: torch.optim.Optimizer
+    lr_scheduler: str, lr_scheduler_params: dict, optimizer: torch.optim.Optimizer
 ) -> torch.optim.lr_scheduler._LRScheduler:  # pylint: disable=protected-access
     """Find, initialize and return a Torch scheduler.
 
@@ -147,7 +148,7 @@ def get_optimizer(
     optimizer_params: dict,
     lr: float,
     model: torch.nn.Module = None,
-    parameters: List = None,
+    parameters: Optional[list] = None,
 ) -> torch.optim.Optimizer:
     """Find, initialize and return a Torch optimizer.
 
@@ -162,7 +163,7 @@ def get_optimizer(
     """
     if optimizer_name.lower() == "radam":
         module = importlib.import_module("TTS.utils.radam")
-        optimizer = getattr(module, "RAdam")
+        optimizer = module.RAdam
     else:
         optimizer = getattr(torch.optim, optimizer_name)
     if model is not None:
