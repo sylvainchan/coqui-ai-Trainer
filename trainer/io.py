@@ -84,9 +84,13 @@ def load_fsspec(
 
 
 def load_checkpoint(
-    model: torch.nn.Module, checkpoint_path: Union[str, os.PathLike[Any]], use_cuda: bool = False, eval=False
+    model: torch.nn.Module,
+    checkpoint_path: Union[str, os.PathLike[Any]],
+    use_cuda: bool = False,
+    eval: bool = False,
+    cache: bool = False,
 ) -> tuple[torch.nn.Module, Any]:  # pylint: disable=redefined-builtin
-    state = load_fsspec(checkpoint_path, map_location=torch.device("cpu"))
+    state = load_fsspec(checkpoint_path, map_location=torch.device("cpu"), cache=cache)
     model.load_state_dict(state["model"])
     if use_cuda:
         model.cuda()
