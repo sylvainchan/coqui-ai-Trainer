@@ -72,7 +72,7 @@ def remove_experiment_folder(experiment_path: Union[str, os.PathLike[Any]]) -> N
     """Check folder if there is a checkpoint, otherwise remove the folder"""
     experiment_path = str(experiment_path)
     fs = fsspec.get_mapper(experiment_path).fs
-    checkpoint_files = fs.glob(experiment_path + "/*.pth")
+    checkpoint_files = fs.glob(os.path.join(experiment_path, "*.pth"))
     if not checkpoint_files:
         if fs.exists(experiment_path):
             fs.rm(experiment_path, recursive=True)
