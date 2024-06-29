@@ -944,7 +944,7 @@ class Trainer:
     def _compute_grad_norm(self, optimizer: torch.optim.Optimizer):
         return torch.norm(torch.cat([param.grad.view(-1) for param in self.master_params(optimizer)], dim=0), p=2)
 
-    def _grad_clipping(self, grad_clip: float, optimizer: torch.optim.Optimizer, scaler: torch.amp.GradScaler):
+    def _grad_clipping(self, grad_clip: float, optimizer: torch.optim.Optimizer, scaler: torch.cuda.amp.GradScaler):
         """Perform gradient clipping"""
         if grad_clip is not None and grad_clip > 0:
             if scaler:
@@ -960,7 +960,7 @@ class Trainer:
         batch: dict,
         model: nn.Module,
         optimizer: torch.optim.Optimizer,
-        scaler: torch.amp.GradScaler,
+        scaler: torch.cuda.amp.GradScaler,
         criterion: nn.Module,
         scheduler: Union[torch.optim.lr_scheduler._LRScheduler, list, dict],  # pylint: disable=protected-access
         config: Coqpit,
