@@ -7,7 +7,7 @@ include = ["trainer*"]
 
 [project]
 name = "coqui-tts-trainer"
-version = "0.1.4"
+version = "0.1.5"
 description = "General purpose model trainer for PyTorch that is more flexible than it should be, by 🐸Coqui."
 readme = "README.md"
 requires-python = ">=3.9, <3.13"
