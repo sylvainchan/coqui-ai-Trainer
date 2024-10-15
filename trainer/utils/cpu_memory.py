@@ -23,10 +23,7 @@ def set_cpu_memory_limit(num_gigabytes):
 
         num_bytes = int(num_gigabytes * 2**30)
         _, hard_limit = resource.getrlimit(resource.RLIMIT_AS)
-        if hard_limit != resource.RLIM_INFINITY:
-            hard_limit = min(num_bytes, hard_limit)
-        else:
-            hard_limit = num_bytes
+        hard_limit = min(num_bytes, hard_limit) if hard_limit != resource.RLIM_INFINITY else num_bytes
         resource.setrlimit(resource.RLIMIT_AS, (hard_limit, hard_limit))
     except ImportError:
         pass

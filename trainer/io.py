@@ -128,10 +128,7 @@ def save_model(
     save_func: Optional[Callable] = None,
     **kwargs,
 ) -> None:
-    if hasattr(model, "module"):
-        model_state = model.module.state_dict()
-    else:
-        model_state = model.state_dict()
+    model_state = model.module.state_dict() if hasattr(model, "module") else model.state_dict()
     if isinstance(optimizer, list):
         optimizer_state = [optim.state_dict() for optim in optimizer]
     elif isinstance(optimizer, dict):

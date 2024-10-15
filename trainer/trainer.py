@@ -588,11 +588,7 @@ class Trainer:
         Returns:
             TrainerModel: initialized model.
         """
-        if len(signature(get_model).parameters) == 1:
-            model = get_model(config)
-        else:
-            model = get_model()
-        return model
+        return get_model(config) if len(signature(get_model).parameters) == 1 else get_model()
 
     @staticmethod
     def run_get_data_samples(config: TrainerConfig, get_data_samples: Callable) -> tuple[Iterable, Iterable]:
@@ -843,10 +839,7 @@ class Trainer:
             Dict: Formatted batch.
         """
         try:
-            if self.num_gpus > 1:
-                batch = self.model.module.format_batch(batch)
-            else:
-                batch = self.model.format_batch(batch)
+            batch = self.model.module.format_batch(batch) if self.num_gpus > 1 else self.model.format_batch(batch)
         except NotImplementedError:
             pass
 
@@ -906,10 +899,7 @@ class Trainer:
 
     def _get_autocast_args(self, mixed_precision: bool, precision: str) -> tuple[str, torch.dtype]:
         device = "cpu"
-        if is_pytorch_at_least_2_4():
-            dtype = torch.get_autocast_dtype("cpu")
-        else:
-            dtype = torch.get_autocast_cpu_dtype()
+        dtype = torch.get_autocast_dtype("cpu") if is_pytorch_at_least_2_4() else torch.get_autocast_cpu_dtype()
         if self.use_cuda:
             device = "cuda"
             dtype = torch.float32
