@@ -10,9 +10,7 @@ from trainer.logger import logger
 
 
 def distribute() -> None:
-    """
-    Call 👟Trainer training script in DDP mode.
-    """
+    """Call 👟Trainer training script in DDP mode."""
     parser = TrainerArgs().init_argparse(arg_prefix="")
     parser.add_argument("--script", type=str, help="Target training script to distibute.")
     parser.add_argument(

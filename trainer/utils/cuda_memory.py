@@ -1,8 +1,6 @@
-"""
-credit: https://github.com/BlackHC/toma/blob/master/toma/torch_cuda_memory.py
+"""Helper to free Torch cuda memory and determine when a Torch exception might be because of OOM conditions.
 
-Helper to free Torch cuda memory and determine when a Torch exception might be
-because of OOM conditions.
+credit: https://github.com/BlackHC/toma/blob/master/toma/torch_cuda_memory.py
 """
 
 import gc

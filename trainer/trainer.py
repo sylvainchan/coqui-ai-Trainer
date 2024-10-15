@@ -96,12 +96,10 @@ class Trainer:
         It can train all the available `tts` and `vocoder` models or easily be customized.
 
         Notes:
-
             Supports Automatic Mixed Precision training. If `Apex` is availabe, it automatically picks that, else
             it uses PyTorch's native `amp` module. `Apex` may provide more stable training in some cases.
 
         Args:
-
             args (TrainerArgs): Training arguments parsed either from console by `argparse` or `TrainerArgs`
                 config object.
 
@@ -171,7 +169,7 @@ class Trainer:
             >>> trainer = Trainer(args, config, model=model)
             >>> trainer.fit()
 
-            TODO:
+        TODO:
                 - Wrap model for not calling .module in DDP.
                 - Deepspeed integration
                 - Profiler integration.
@@ -417,7 +415,6 @@ class Trainer:
         precision,
     ) -> tuple:
         """Setup HF Accelerate for the training."""
-
         # check if accelerate is installed
         try:
             from accelerate import Accelerator  # pylint:disable=import-outside-toplevel
@@ -966,7 +963,7 @@ class Trainer:
         return torch.norm(torch.cat([param.grad.view(-1) for param in self.master_params(optimizer)], dim=0), p=2)
 
     def _grad_clipping(self, grad_clip: float, optimizer: torch.optim.Optimizer, scaler: Optional["torch.GradScaler"]):
-        """Perform gradient clipping"""
+        """Perform gradient clipping."""
         if grad_clip is not None and grad_clip > 0:
             if scaler:
                 scaler.unscale_(optimizer)
@@ -1410,7 +1407,6 @@ class Trainer:
 
     def eval_epoch(self) -> None:
         """Main entry point for the evaluation loop. Run evaluation on the all validation samples."""
-
         # initialize it when eval_epoch is called alone.
         self.keep_avg_eval = KeepAverage() if self.keep_avg_eval is None else self.keep_avg_eval
 
@@ -1775,7 +1771,9 @@ class Trainer:
 
     @staticmethod
     def get_optimizer(model: TrainerModel, config: TrainerConfig) -> Union[torch.optim.Optimizer, list]:
-        """Receive the optimizer from the model if model implements `get_optimizer()` else
+        """Return the optimizer.
+
+        From the model if model implements `get_optimizer()` else
         check the optimizer parameters in the config and try initiating the optimizer.
 
         Args:
@@ -1799,8 +1797,10 @@ class Trainer:
 
     @staticmethod
     def get_lr(model: TrainerModel, config: TrainerConfig) -> Union[float, list[float]]:
-        """Set the initial learning rate by the model if model implements `get_lr()` else try setting the learning rate
-        fromthe config.
+        """Set the initial learning rate.
+
+        According to the model if model implements `get_lr()` else try setting
+        the learning rate from the config.
 
         Args:
             model (TrainerModel): Training model.
@@ -1823,7 +1823,9 @@ class Trainer:
     def get_scheduler(
         model: TrainerModel, config: TrainerConfig, optimizer: Union[torch.optim.Optimizer, list, dict]
     ) -> Union[torch.optim.lr_scheduler._LRScheduler, list]:  # pylint: disable=protected-access
-        """Receive the scheduler from the model if model implements `get_scheduler()` else
+        """Return the scheduler.
+
+        From the model if model implements `get_scheduler()` else
         check the config and try initiating the scheduler.
 
         Args:
@@ -1915,8 +1917,7 @@ class Trainer:
         return loss_dict_detached
 
     def _pick_target_avg_loss(self, keep_avg_target: Optional[KeepAverage]) -> Optional[dict]:
-        """Pick the target loss to compare models"""
-
+        """Pick the target loss to compare models."""
         # if the keep_avg_target is None or empty return None
         if keep_avg_target is None or len(list(keep_avg_target.avg_values.keys())) == 0:
             return None

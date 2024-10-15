@@ -64,7 +64,11 @@ def get_git_branch() -> str:
 
 
 def get_commit_hash() -> str:
-    """https://stackoverflow.com/questions/14989858/get-the-current-git-hash-in-a-python-script"""
+    """Get current git commit hash.
+
+    Source:
+    https://stackoverflow.com/questions/14989858/get-the-current-git-hash-in-a-python-script
+    """
     try:
         commit = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"]).decode().strip()
     # Not copying .git folder into docker container
@@ -74,7 +78,7 @@ def get_commit_hash() -> str:
 
 
 def get_experiment_folder_path(root_path: Union[str, os.PathLike[Any]], model_name: str) -> str:
-    """Get an experiment folder path with the current date and time"""
+    """Get an experiment folder path with the current date and time."""
     date_str = datetime.datetime.now().strftime("%B-%d-%Y_%I+%M%p")
     commit_hash = get_commit_hash()
     output_folder = os.path.join(root_path, model_name + "-" + date_str + "-" + commit_hash)
@@ -82,7 +86,7 @@ def get_experiment_folder_path(root_path: Union[str, os.PathLike[Any]], model_na
 
 
 def remove_experiment_folder(experiment_path: Union[str, os.PathLike[Any]]) -> None:
-    """Check folder if there is a checkpoint, otherwise remove the folder"""
+    """Check folder if there is a checkpoint, otherwise remove the folder."""
     experiment_path = str(experiment_path)
     fs = fsspec.get_mapper(experiment_path).fs
     checkpoint_files = fs.glob(os.path.join(experiment_path, "*.pth"))
@@ -95,7 +99,7 @@ def remove_experiment_folder(experiment_path: Union[str, os.PathLike[Any]]) -> N
 
 
 def count_parameters(model: torch.nn.Module) -> int:
-    r"""Count number of trainable parameters in a network"""
+    r"""Count number of trainable parameters in a network."""
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 

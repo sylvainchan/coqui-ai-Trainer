@@ -90,7 +90,9 @@ class TrainerModel(ABC, nn.Module):
 
     @torch.no_grad()
     def eval_step(self, *args: Any, **kwargs: Any):
-        """Perform a single evaluation step. Run the model forward ... and compute losses. In most cases, you can
+        """Perform a single evaluation step.
+
+        Run the model forward ... and compute losses. In most cases, you can
         call `train_step()` with no changes.
 
         Args:
@@ -105,7 +107,7 @@ class TrainerModel(ABC, nn.Module):
         raise NotImplementedError(msg)
 
     def eval_log(self, *args: Any, **kwargs: Any) -> None:
-        """The same as `train_log()`"""
+        """The same as `train_log()`."""
         msg = " [!] `eval_log()` is not implemented."
         raise NotImplementedError(msg)
 
@@ -125,7 +127,6 @@ class TrainerModel(ABC, nn.Module):
         Returns:
             torch.utils.data.DataLoader: Data loader for the model.
         """
-
         ...
         msg = " [!] `get_data_loader()` is not implemented."
         raise NotImplementedError(msg)
@@ -134,11 +135,12 @@ class TrainerModel(ABC, nn.Module):
         """Initialize model for training."""
 
     def optimize(self, *args: Any, **kwargs: Any) -> tuple[dict, dict, float]:
-        """Model specific optimization step that must perform the following steps:
+        """Model specific optimization step that must perform the following steps.
+
             1. Forward pass
             2. Compute loss
             3. Backward pass
-            4. Update weights
+            4. Update weights.
 
         Use `self.scaled_backward()` instead of `loss.backward()` to be able to use Mixed Precision Training.
 

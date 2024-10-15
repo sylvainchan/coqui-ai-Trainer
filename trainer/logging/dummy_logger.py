@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 
 
 class DummyLogger(BaseDashboardLogger):
-    """DummyLogger that implements the API but does nothing"""
+    """DummyLogger that implements the API but does nothing."""
 
     def add_scalar(self, title: str, value: float, step: int) -> None:
         pass

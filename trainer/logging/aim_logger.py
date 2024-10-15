@@ -60,7 +60,7 @@ class AimLogger(BaseDashboardLogger):
             layer_num += 1
 
     def add_config(self, config):
-        """TODO: Add config to AIM"""
+        """TODO: Add config to AIM."""
         # self.run['hparams'] = config.to_dict()
         self.add_text("model-config", f"<pre>{config.to_json()}</pre>", 0)
 
