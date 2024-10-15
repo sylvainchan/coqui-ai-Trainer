@@ -290,7 +290,8 @@ class Trainer:
         elif get_model is not None:
             self.run_get_model(self.config, get_model)
         else:
-            raise ValueError("[!] `model` and `get_model` cannot both be None.")
+            msg = "`model` and `get_model` cannot both be None."
+            raise ValueError(msg)
 
         # init model's training assets
         if isimplemented(self.model, "init_for_training"):
@@ -328,9 +329,8 @@ class Trainer:
             and isinstance(self.optimizer, list)
             and not isimplemented(self.model, "optimize")
         ):
-            raise ValueError(
-                " [!] Coqui Trainer does not support grad_accum_steps for multiple-optimizer setup, please set grad_accum_steps to 1 or implement in your model a custom method called `optimize` that need to deal with dangling gradients in multiple-optimizer setup!"
-            )
+            msg = " [!] Coqui Trainer does not support grad_accum_steps for multiple-optimizer setup, please set grad_accum_steps to 1 or implement in your model a custom method called `optimize` that need to deal with dangling gradients in multiple-optimizer setup!"
+            raise ValueError(msg)
 
         # CALLBACK
         self.callbacks = TrainerCallback()
@@ -422,7 +422,8 @@ class Trainer:
         try:
             from accelerate import Accelerator  # pylint:disable=import-outside-toplevel
         except ImportError as e:
-            raise ImportError("Please install accelerate to use this feature.") from e
+            msg = "Please install accelerate to use this feature."
+            raise ImportError(msg) from e
 
         _precision = precision if precision is not None else "f16" if mixed_precision else None
         if _precision == "float16":
@@ -1849,9 +1850,10 @@ class Trainer:
             except NotImplementedError:
                 scheduler = None
             if isinstance(scheduler, dict) and not isimplemented(model, "optimize"):
-                raise ValueError(
+                msg = (
                     " [!] Dictionary of schedulers are only supported with the manual optimization `model.optimize()`."
                 )
+                raise ValueError(msg)
         if scheduler is None:
             lr_scheduler = config.lr_scheduler
             lr_scheduler_params = config.lr_scheduler_params
@@ -1936,9 +1938,8 @@ class Trainer:
             if f"avg_{self.config.target_loss}" in keep_avg_target.avg_values.keys():
                 return keep_avg_target[f"avg_{self.config.target_loss}"]
 
-            raise ValueError(
-                " [!] Target loss not found in the keep_avg_target. You might be exiting the training loop before it is computed or set the target_loss in the model config incorrectly."
-            )
+            msg = " [!] Target loss not found in the keep_avg_target. You might be exiting the training loop before it is computed or set the target_loss in the model config incorrectly."
+            raise ValueError(msg)
 
         # take the average of loss_{optimizer_idx} as the target loss when there are multiple optimizers
         if isinstance(self.optimizer, list):

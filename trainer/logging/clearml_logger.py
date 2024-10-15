@@ -10,7 +10,8 @@ from trainer.utils.distributed import rank_zero_only
 if is_clearml_available():
     from clearml import Task  # pylint: disable=import-error
 else:
-    raise ImportError("ClearML is not installed. Please install it with `pip install clearml`")
+    msg = "ClearML is not installed. Please install it with `pip install clearml`"
+    raise ImportError(msg)
 
 
 class ClearMLLogger(TensorboardLogger):

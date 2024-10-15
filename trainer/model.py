@@ -66,7 +66,8 @@ class TrainerModel(ABC, nn.Module):
         Returns:
             Tuple[Dict, Dict]: Model ouputs and computed losses.
         """
-        raise NotImplementedError(" [!] `train_step()` is not implemented.")
+        msg = " [!] `train_step()` is not implemented."
+        raise NotImplementedError(msg)
 
     def train_log(self, *args: Any, **kwargs: Any) -> None:
         """Create visualizations and waveform examples for training.
@@ -84,7 +85,8 @@ class TrainerModel(ABC, nn.Module):
         Returns:
             Tuple[Dict, np.ndarray]: training plots and output waveform.
         """
-        raise NotImplementedError(" [!] `train_log()` is not implemented.")
+        msg = " [!] `train_log()` is not implemented."
+        raise NotImplementedError(msg)
 
     @torch.no_grad()
     def eval_step(self, *args: Any, **kwargs: Any):
@@ -99,11 +101,13 @@ class TrainerModel(ABC, nn.Module):
         Returns:
             Tuple[Dict, Dict]: Model ouputs and computed losses.
         """
-        raise NotImplementedError(" [!] `eval_step()` is not implemented.")
+        msg = " [!] `eval_step()` is not implemented."
+        raise NotImplementedError(msg)
 
     def eval_log(self, *args: Any, **kwargs: Any) -> None:
         """The same as `train_log()`"""
-        raise NotImplementedError(" [!] `eval_log()` is not implemented.")
+        msg = " [!] `eval_log()` is not implemented."
+        raise NotImplementedError(msg)
 
     @abstractmethod
     def get_data_loader(*args: Any, **kwargs: Any) -> torch.utils.data.DataLoader:
@@ -123,7 +127,8 @@ class TrainerModel(ABC, nn.Module):
         """
 
         ...
-        raise NotImplementedError(" [!] `get_data_loader()` is not implemented.")
+        msg = " [!] `get_data_loader()` is not implemented."
+        raise NotImplementedError(msg)
 
     def init_for_training(self) -> None:
         """Initialize model for training."""
@@ -144,7 +149,8 @@ class TrainerModel(ABC, nn.Module):
         Returns:
             Tuple[Dict, Dict, float]: Model outputs, loss dictionary and grad_norm value.
         """
-        raise NotImplementedError(" [!] `optimize()` is not implemented.")
+        msg = " [!] `optimize()` is not implemented."
+        raise NotImplementedError(msg)
 
     def scaled_backward(
         self,
