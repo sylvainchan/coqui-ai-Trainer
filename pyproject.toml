@@ -114,27 +114,40 @@ packages = ["trainer"]
 line-length = 120
 target-version = "py39"
 lint.extend-select = [
-    "B",  # bugbear
-    "I",  # import sorting
+    "ANN204", # type hints
+    "B",      # bugbear
+    "D2",     # docs
+    "D412",
+    "D415",
+    "EM",     # error messages
+    "FBT",    # boolean arguments
+    "FLY",
+    "I",      # import sorting
     "PIE",
-    "PLC",
-    "PLE",
-    "PLW",
-    "RUF",
-    "UP",  # pyupgrade
+    "PL",     # pylint
+    "RET",    # return statements
+    "RUF",    # ruff-specific
+    "UP",     # pyupgrade
+    "SIM",    # simplify
 ]
 
 lint.ignore = [
     "F821",  # TODO: enable
     "PLW2901",  # TODO: enable
-    "UP032",  # TODO: enable
+    "PLR09",
 ]
 
 [tool.ruff.lint.per-file-ignores]
 "**/__init__.py" = [
-    "F401", # init files may have "unused" imports for now
-    "F403", # init files may have star imports for now
+    "F401",  # init files may have "unused" imports for now
+    "F403",  # init files may have star imports for now
 ]
+"tests/**" = [
+    "PLR2004",  # magic values are ok in tests
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
 
 [tool.coverage.report]
 show_missing = true
