@@ -143,15 +143,14 @@ class KeepAverage:
         if name not in self.avg_values:
             # add value if not exist before
             self.add_value(name, init_val=value)
+        # else update existing value
+        elif weighted_avg:
+            self.avg_values[name] = 0.99 * self.avg_values[name] + 0.01 * value
+            self.iters[name] += 1
         else:
-            # else update existing value
-            if weighted_avg:
-                self.avg_values[name] = 0.99 * self.avg_values[name] + 0.01 * value
-                self.iters[name] += 1
-            else:
-                self.avg_values[name] = self.avg_values[name] * self.iters[name] + value
-                self.iters[name] += 1
-                self.avg_values[name] /= self.iters[name]
+            self.avg_values[name] = self.avg_values[name] * self.iters[name] + value
+            self.iters[name] += 1
+            self.avg_values[name] /= self.iters[name]
 
     def add_values(self, name_dict: dict[str, float]) -> None:
         for key, value in name_dict.items():

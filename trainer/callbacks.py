@@ -44,9 +44,8 @@ class TrainerCallback:
         if hasattr(trainer.model, "module"):
             if hasattr(trainer.model.module, "on_init_start"):
                 trainer.model.module.on_init_start(trainer)
-        else:
-            if hasattr(trainer.model, "on_init_start"):
-                trainer.model.on_init_start(trainer)
+        elif hasattr(trainer.model, "on_init_start"):
+            trainer.model.on_init_start(trainer)
 
         if hasattr(trainer.criterion, "on_init_start"):
             trainer.criterion.on_init_start(trainer)
@@ -62,9 +61,8 @@ class TrainerCallback:
         if hasattr(trainer.model, "module"):
             if hasattr(trainer.model.module, "on_init_end"):
                 trainer.model.module.on_init_end(trainer)
-        else:
-            if hasattr(trainer.model, "on_init_end"):
-                trainer.model.on_init_end(trainer)
+        elif hasattr(trainer.model, "on_init_end"):
+            trainer.model.on_init_end(trainer)
 
         if hasattr(trainer.criterion, "on_init_end"):
             trainer.criterion.on_init_end(trainer)
@@ -80,9 +78,8 @@ class TrainerCallback:
         if hasattr(trainer.model, "module"):
             if hasattr(trainer.model.module, "on_epoch_start"):
                 trainer.model.module.on_epoch_start(trainer)
-        else:
-            if hasattr(trainer.model, "on_epoch_start"):
-                trainer.model.on_epoch_start(trainer)
+        elif hasattr(trainer.model, "on_epoch_start"):
+            trainer.model.on_epoch_start(trainer)
 
         if hasattr(trainer.criterion, "on_epoch_start"):
             trainer.criterion.on_epoch_start(trainer)
@@ -98,9 +95,8 @@ class TrainerCallback:
         if hasattr(trainer.model, "module"):
             if hasattr(trainer.model.module, "on_epoch_end"):
                 trainer.model.module.on_epoch_end(trainer)
-        else:
-            if hasattr(trainer.model, "on_epoch_end"):
-                trainer.model.on_epoch_end(trainer)
+        elif hasattr(trainer.model, "on_epoch_end"):
+            trainer.model.on_epoch_end(trainer)
 
         if hasattr(trainer.criterion, "on_epoch_end"):
             trainer.criterion.on_epoch_end(trainer)
@@ -116,9 +112,8 @@ class TrainerCallback:
         if hasattr(trainer.model, "module"):
             if hasattr(trainer.model.module, "on_train_epoch_start"):
                 trainer.model.module.on_train_epoch_start(trainer)
-        else:
-            if hasattr(trainer.model, "on_train_epoch_start"):
-                trainer.model.on_train_epoch_start(trainer)
+        elif hasattr(trainer.model, "on_train_epoch_start"):
+            trainer.model.on_train_epoch_start(trainer)
 
         if hasattr(trainer.criterion, "on_train_epoch_start"):
             trainer.criterion.on_train_epoch_start(trainer)
@@ -134,9 +129,8 @@ class TrainerCallback:
         if hasattr(trainer.model, "module"):
             if hasattr(trainer.model.module, "on_train_epoch_end"):
                 trainer.model.module.on_train_epoch_end(trainer)
-        else:
-            if hasattr(trainer.model, "on_train_epoch_end"):
-                trainer.model.on_train_epoch_end(trainer)
+        elif hasattr(trainer.model, "on_train_epoch_end"):
+            trainer.model.on_train_epoch_end(trainer)
 
         if hasattr(trainer.criterion, "on_train_epoch_end"):
             trainer.criterion.on_train_epoch_end(trainer)
@@ -153,26 +147,23 @@ class TrainerCallback:
         if hasattr(trainer.model, "module"):
             if hasattr(trainer.model.module, "before_backward_pass"):
                 trainer.model.module.before_backward_pass(loss_dict, trainer.optimizer)
-        else:
-            if hasattr(trainer.model, "before_backward_pass"):
-                trainer.model.before_backward_pass(loss_dict, trainer.optimizer)
+        elif hasattr(trainer.model, "before_backward_pass"):
+            trainer.model.before_backward_pass(loss_dict, trainer.optimizer)
 
     @staticmethod
     def before_gradient_clipping(trainer) -> None:
         if hasattr(trainer.model, "module"):
             if hasattr(trainer.model.module, "before_gradient_clipping"):
                 trainer.model.module.before_gradient_clipping()
-        else:
-            if hasattr(trainer.model, "before_gradient_clipping"):
-                trainer.model.before_gradient_clipping()
+        elif hasattr(trainer.model, "before_gradient_clipping"):
+            trainer.model.before_gradient_clipping()
 
     def on_train_step_start(self, trainer) -> None:
         if hasattr(trainer.model, "module"):
             if hasattr(trainer.model.module, "on_train_step_start"):
                 trainer.model.module.on_train_step_start(trainer)
-        else:
-            if hasattr(trainer.model, "on_train_step_start"):
-                trainer.model.on_train_step_start(trainer)
+        elif hasattr(trainer.model, "on_train_step_start"):
+            trainer.model.on_train_step_start(trainer)
 
         if hasattr(trainer.criterion, "on_train_step_start"):
             trainer.criterion.on_train_step_start(trainer)
@@ -188,9 +179,8 @@ class TrainerCallback:
         if hasattr(trainer.model, "module"):
             if hasattr(trainer.model.module, "on_train_step_end"):
                 trainer.model.module.on_train_step_end(trainer)
-        else:
-            if hasattr(trainer.model, "on_train_step_end"):
-                trainer.model.on_train_step_end(trainer)
+        elif hasattr(trainer.model, "on_train_step_end"):
+            trainer.model.on_train_step_end(trainer)
 
         if hasattr(trainer.criterion, "on_train_step_end"):
             trainer.criterion.on_train_step_end(trainer)
@@ -206,9 +196,8 @@ class TrainerCallback:
         if hasattr(trainer.model, "module"):
             if hasattr(trainer.model.module, "on_keyboard_interrupt"):
                 trainer.model.module.on_keyboard_interrupt(trainer)
-        else:
-            if hasattr(trainer.model, "on_keyboard_interrupt"):
-                trainer.model.on_keyboard_interrupt(trainer)
+        elif hasattr(trainer.model, "on_keyboard_interrupt"):
+            trainer.model.on_keyboard_interrupt(trainer)
 
         if hasattr(trainer.criterion, "on_keyboard_interrupt"):
             trainer.criterion.on_keyboard_interrupt(trainer)

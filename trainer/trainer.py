@@ -940,9 +940,8 @@ class Trainer:
             loss_dict_detached[f"loss_{optimizer_idx}"] = loss_dict_detached.pop("loss")
             if step_optimizer and grad_norm is not None:
                 loss_dict_detached[f"grad_norm_{optimizer_idx}"] = grad_norm
-        else:
-            if step_optimizer and grad_norm is not None:
-                loss_dict_detached["grad_norm"] = grad_norm
+        elif step_optimizer and grad_norm is not None:
+            loss_dict_detached["grad_norm"] = grad_norm
         return loss_dict_detached
 
     def _compute_loss(
