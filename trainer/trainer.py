@@ -919,7 +919,8 @@ class Trainer:
                 elif precision == "bf16":
                     dtype = torch.bfloat16
                 else:
-                    raise ValueError(f" ❗ Unknown precision {precision}")
+                    msg = f" ❗ Unknown precision {precision}"
+                    raise ValueError(msg)
         elif mixed_precision:
             dtype = torch.bfloat16
         return device, dtype

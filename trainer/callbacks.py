@@ -37,7 +37,8 @@ class TrainerCallback:
             elif key == "on_keyboard_interrupt":
                 self.callbacks_on_keyboard_interrupt.append(value)
             else:
-                raise ValueError(f"Invalid callback key: {key}")
+                msg = f"Invalid callback key: {key}"
+                raise ValueError(msg)
 
     def on_init_start(self, trainer: "Trainer") -> None:
         if hasattr(trainer.model, "module"):

@@ -67,6 +67,7 @@ def logger_factory(config: TrainerConfig, output_path: str) -> BaseDashboardLogg
         )
 
     else:
-        raise ValueError(f"Unknown dashboard logger: {config.dashboard_logger}")
+        msg = f"Unknown dashboard logger: {config.dashboard_logger}"
+        raise ValueError(msg)
 
     return dashboard_logger

@@ -304,7 +304,8 @@ def get_last_checkpoint(path: Union[str, os.PathLike[Any]]) -> tuple[str, str]:
 
     # check what models were found
     if not last_models:
-        raise ValueError(f"No models found in continue path {path}!")
+        msg = f"No models found in continue path {path}!"
+        raise ValueError(msg)
     if "checkpoint" not in last_models:  # no checkpoint just best model
         last_models["checkpoint"] = last_models["best_model"]
     elif "best_model" not in last_models:  # no best model
