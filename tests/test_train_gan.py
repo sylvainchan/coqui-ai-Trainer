@@ -102,15 +102,15 @@ def test_overfit_mnist_simple_gan(tmp_path):
                 return {"model_outputs": logits}, {"loss": loss}
 
             # train generator
-            if optimizer_idx == 1:
-                imgs_gen = self.generator(z)
+            assert optimizer_idx == 1
+            imgs_gen = self.generator(z)
 
-                valid = torch.ones(imgs.size(0), 1)
-                valid = valid.type_as(imgs)
+            valid = torch.ones(imgs.size(0), 1)
+            valid = valid.type_as(imgs)
 
-                logits = self.discriminator(imgs_gen)
-                loss_real = criterion(logits, valid)
-                return {"model_outputs": logits}, {"loss": loss_real}
+            logits = self.discriminator(imgs_gen)
+            loss_real = criterion(logits, valid)
+            return {"model_outputs": logits}, {"loss": loss_real}
 
         @torch.no_grad()
         def eval_step(self, batch, criterion, optimizer_idx):
@@ -194,15 +194,15 @@ def test_overfit_accelerate_mnist_simple_gan(tmp_path):
                 return {"model_outputs": logits}, {"loss": loss}
 
             # train generator
-            if optimizer_idx == 1:
-                imgs_gen = self.generator(z)
+            assert optimizer_idx == 1
+            imgs_gen = self.generator(z)
 
-                valid = torch.ones(imgs.size(0), 1)
-                valid = valid.type_as(imgs)
+            valid = torch.ones(imgs.size(0), 1)
+            valid = valid.type_as(imgs)
 
-                logits = self.discriminator(imgs_gen)
-                loss_real = criterion(logits, valid)
-                return {"model_outputs": logits}, {"loss": loss_real}
+            logits = self.discriminator(imgs_gen)
+            loss_real = criterion(logits, valid)
+            return {"model_outputs": logits}, {"loss": loss_real}
 
         @torch.no_grad()
         def eval_step(self, batch, criterion, optimizer_idx):

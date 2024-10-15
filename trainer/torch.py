@@ -1,3 +1,4 @@
+import contextlib
 from collections.abc import Iterator
 from typing import Optional
 
@@ -105,11 +106,9 @@ class StepwiseGradualLR(torch.optim.lr_scheduler._LRScheduler):
             rates.append(values[1])
 
         boolean_indeces = np.less_equal(step_thresholds, step)
-        try:
+        # Ignore steps larger than the last step in the list
+        with contextlib.suppress(IndexError):
             last_true = np.where(boolean_indeces)[0][-1]  # pylint: disable=singleton-comparison
-        except IndexError:
-            # For the steps larger than the last step in the list
-            pass
         lr = rates[np.max(last_true, 0)]
 
         # Return last lr if step is above the set threshold

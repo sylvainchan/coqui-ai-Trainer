@@ -9,7 +9,7 @@ import sys
 import time
 import traceback
 from collections.abc import Generator, Iterable
-from contextlib import nullcontext
+from contextlib import nullcontext, suppress
 from inspect import signature
 from typing import Any, Callable, Optional, Union
 
@@ -838,10 +838,8 @@ class Trainer:
         Returns:
             Dict: Formatted batch.
         """
-        try:
+        with suppress(NotImplementedError):
             batch = self.model.module.format_batch(batch) if self.num_gpus > 1 else self.model.format_batch(batch)
-        except NotImplementedError:
-            pass
 
         if isinstance(batch, dict):
             for k, v in batch.items():
@@ -1253,10 +1251,12 @@ class Trainer:
             # reduce TB load and don't log every step
             if self.total_steps_done % self.config.plot_step == 0:
                 self.dashboard_logger.train_step_stats(self.total_steps_done, loss_dict)
-            if self.total_steps_done % self.config.save_step == 0 and self.total_steps_done != 0:
-                if self.config.save_checkpoints:
-                    # checkpoint the model
-                    self.save_checkpoint()
+            if (
+                self.total_steps_done % self.config.save_step == 0
+                and self.total_steps_done != 0
+                and self.config.save_checkpoints
+            ):
+                self.save_checkpoint()
 
             if self.total_steps_done % self.config.log_model_step == 0:
                 # log checkpoint as artifact
