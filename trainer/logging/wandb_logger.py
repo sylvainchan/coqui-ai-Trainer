@@ -95,7 +95,7 @@ class WandbLogger(BaseDashboardLogger):
     def add_artifact(self, file_or_dir, name, artifact_type, aliases=None):
         if not self.run:
             return
-        name = "_".join([self.run.id, name])
+        name = f"{self.run.id}_{name}"
         artifact = wandb.Artifact(name, type=artifact_type)
         data_path = Path(file_or_dir)
         if data_path.is_dir():
