@@ -5,8 +5,14 @@ from typing import Any, Union
 
 import fsspec
 import torch
+from packaging.version import Version
 
 from trainer.logger import logger
+
+
+def is_pytorch_at_least_2_4() -> bool:
+    """Check if the installed Pytorch version is 2.4 or higher."""
+    return Version(torch.__version__) >= Version("2.4")
 
 
 def isimplemented(obj, method_name) -> bool:

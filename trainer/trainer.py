@@ -25,6 +25,7 @@ from trainer.generic_utils import (
     count_parameters,
     get_experiment_folder_path,
     get_git_branch,
+    is_pytorch_at_least_2_4,
     isimplemented,
     remove_experiment_folder,
     set_partial_state_dict,
@@ -883,7 +884,10 @@ class Trainer:
 
     def _get_autocast_args(self, mixed_precision: bool, precision: str):
         device = "cpu"
-        dtype = torch.get_autocast_cpu_dtype()
+        if is_pytorch_at_least_2_4():
+            dtype = torch.get_autocast_dtype("cpu")
+        else:
+            dtype = torch.get_autocast_cpu_dtype()
         if self.use_cuda:
             device = "cuda"
             dtype = torch.float32
