@@ -33,30 +33,30 @@ class WandbLogger(BaseDashboardLogger):
         layer_num = 1
         for name, param in model.named_parameters():
             if param.numel() == 1:
-                self.add_scalars("weights", {"layer{}-{}/value".format(layer_num, name): param.max()}, step)
+                self.add_scalars("weights", {f"layer{layer_num}-{name}/value": param.max()}, step)
             else:
-                self.add_scalars("weights", {"layer{}-{}/max".format(layer_num, name): param.max()}, step)
-                self.add_scalars("weights", {"layer{}-{}/min".format(layer_num, name): param.min()}, step)
-                self.add_scalars("weights", {"layer{}-{}/mean".format(layer_num, name): param.mean()}, step)
-                self.add_scalars("weights", {"layer{}-{}/std".format(layer_num, name): param.std()}, step)
-                self.log_dict[step]["weights/layer{}-{}/param".format(layer_num, name)] = wandb.Histogram(param)
-                self.log_dict[step]["weights/layer{}-{}/grad".format(layer_num, name)] = wandb.Histogram(param.grad)
+                self.add_scalars("weights", {f"layer{layer_num}-{name}/max": param.max()}, step)
+                self.add_scalars("weights", {f"layer{layer_num}-{name}/min": param.min()}, step)
+                self.add_scalars("weights", {f"layer{layer_num}-{name}/mean": param.mean()}, step)
+                self.add_scalars("weights", {f"layer{layer_num}-{name}/std": param.std()}, step)
+                self.log_dict[step][f"weights/layer{layer_num}-{name}/param"] = wandb.Histogram(param)
+                self.log_dict[step][f"weights/layer{layer_num}-{name}/grad"] = wandb.Histogram(param.grad)
             layer_num += 1
 
     def add_scalars(self, scope_name, scalars, step):
         for key, value in scalars.items():
-            self.log_dict[step]["{}/{}".format(scope_name, key)] = value
+            self.log_dict[step][f"{scope_name}/{key}"] = value
 
     def add_figures(self, scope_name, figures, step):
         for key, value in figures.items():
-            self.log_dict[step]["{}/{}".format(scope_name, key)] = wandb.Image(value)
+            self.log_dict[step][f"{scope_name}/{key}"] = wandb.Image(value)
 
     def add_audios(self, scope_name, audios, step, sample_rate):
         for key, value in audios.items():
             if value.dtype == "float16":
                 value = value.astype("float32")
             try:
-                self.log_dict[step]["{}/{}".format(scope_name, key)] = wandb.Audio(value, sample_rate=sample_rate)
+                self.log_dict[step][f"{scope_name}/{key}"] = wandb.Audio(value, sample_rate=sample_rate)
             except RuntimeError:
                 traceback.print_exc()
 

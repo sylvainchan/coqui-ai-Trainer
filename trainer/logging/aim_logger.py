@@ -48,12 +48,12 @@ class AimLogger(BaseDashboardLogger):
         layer_num = 1
         for name, param in model.named_parameters():
             if param.numel() == 1:
-                self.run.log_metric("layer{}-{}/value".format(layer_num, name), param.max(), step)
+                self.run.log_metric(f"layer{layer_num}-{name}/value", param.max(), step)
             else:
-                self.run.log_metric("layer{}-{}/max".format(layer_num, name), param.max(), step)
-                self.run.log_metric("layer{}-{}/min".format(layer_num, name), param.min(), step)
-                self.run.log_metric("layer{}-{}/mean".format(layer_num, name), param.mean(), step)
-                self.run.log_metric("layer{}-{}/std".format(layer_num, name), param.std(), step)
+                self.run.log_metric(f"layer{layer_num}-{name}/max", param.max(), step)
+                self.run.log_metric(f"layer{layer_num}-{name}/min", param.min(), step)
+                self.run.log_metric(f"layer{layer_num}-{name}/mean", param.mean(), step)
+                self.run.log_metric(f"layer{layer_num}-{name}/std", param.std(), step)
                 # MlFlow does not support histograms
                 # self.client.addå_histogram("layer{}-{}/param".format(layer_num, name), param, step)
                 # self.client.add_histogram("layer{}-{}/grad".format(layer_num, name), param.grad, step)
@@ -100,12 +100,12 @@ class AimLogger(BaseDashboardLogger):
         for key, value in scalars.items():
             if torch.is_tensor(value):
                 value = value.item()
-            self.run.track(value, name="{}-{}".format(scope_name, key), step=step, context=self.context)
+            self.run.track(value, name=f"{scope_name}-{key}", step=step, context=self.context)
 
     @rank_zero_only
     def add_figures(self, scope_name, figures, step):
         for key, value in figures.items():
-            title = "{}/{}/{}.png".format(scope_name, key, step)
+            title = f"{scope_name}/{key}/{step}.png"
             self.run.track(
                 Image(value, title),  # Pass image data and/or caption
                 name=title,  # The name of image set
@@ -116,7 +116,7 @@ class AimLogger(BaseDashboardLogger):
     @rank_zero_only
     def add_audios(self, scope_name, audios, step, sample_rate):
         for key, value in audios.items():
-            title = "{}/{}/{}.wav".format(scope_name, key, step)
+            title = f"{scope_name}/{key}/{step}.wav"
             self.run.track(
                 Audio(value),  # Pass audio file or numpy array
                 name=title,  # The name of distributions
