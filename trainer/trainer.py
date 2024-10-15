@@ -1925,7 +1925,7 @@ class Trainer:
         # return if target loss defined in the model config
         # if not available in Dict use loss_1 as by default loss
         if "target_loss" in self.config and self.config.target_loss:
-            if f"avg_{self.config.target_loss}" in keep_avg_target.avg_values.keys():
+            if f"avg_{self.config.target_loss}" in keep_avg_target.avg_values:
                 return keep_avg_target[f"avg_{self.config.target_loss}"]
 
             msg = " [!] Target loss not found in the keep_avg_target. You might be exiting the training loop before it is computed or set the target_loss in the model config incorrectly."

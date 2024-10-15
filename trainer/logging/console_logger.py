@@ -63,7 +63,7 @@ class ConsoleLogger:
         log_text = f"{tcolors.BOLD}   --> TIME: {self.get_time()} -- STEP: {step}/{batch_steps} -- GLOBAL_STEP: {global_step}{tcolors.ENDC}\n"
         for key, value in loss_dict.items():
             # print the avg value if given
-            if f"avg_{key}" in avg_loss_dict.keys():
+            if f"avg_{key}" in avg_loss_dict:
                 log_text += "{}{}: {}  ({})\n".format(indent, key, str(value), str(avg_loss_dict[f"avg_{key}"]))
             else:
                 log_text += f"{indent}{key}: {value!s} \n"
@@ -88,7 +88,7 @@ class ConsoleLogger:
         log_text = f"{tcolors.BOLD}   --> STEP: {step}{tcolors.ENDC}\n"
         for key, value in loss_dict.items():
             # print the avg value if given
-            if f"avg_{key}" in avg_loss_dict.keys():
+            if f"avg_{key}" in avg_loss_dict:
                 log_text += "{}{}: {}  ({})\n".format(indent, key, str(value), str(avg_loss_dict[f"avg_{key}"]))
             else:
                 log_text += f"{indent}{key}: {value!s} \n"
