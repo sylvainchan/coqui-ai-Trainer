@@ -11,7 +11,12 @@ import fsspec
 import torch
 from coqpit import Coqpit
 
+from trainer.generic_utils import is_pytorch_at_least_2_4
 from trainer.logger import logger
+
+# `torch.serialization.add_safe_globals` is needed for weights_only=True to work
+# with all Coqui models and only available from Pytorch >=2.4
+_WEIGHTS_ONLY = is_pytorch_at_least_2_4()
 
 
 def get_user_data_dir(appname: str) -> Path:
@@ -77,10 +82,10 @@ def load_fsspec(
             filecache={"cache_storage": str(get_user_data_dir("tts_cache"))},
             mode="rb",
         ) as f:
-            return torch.load(f, map_location=map_location, weights_only=True, **kwargs)
+            return torch.load(f, map_location=map_location, weights_only=_WEIGHTS_ONLY, **kwargs)
     else:
         with fsspec.open(str(path), "rb") as f:
-            return torch.load(f, map_location=map_location, weights_only=True, **kwargs)
+            return torch.load(f, map_location=map_location, weights_only=_WEIGHTS_ONLY, **kwargs)
 
 
 def load_checkpoint(
