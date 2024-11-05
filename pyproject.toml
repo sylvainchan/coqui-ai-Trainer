@@ -39,7 +39,7 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
-    "coqpit>=0.0.17",
+    "coqpit-config>=0.1.1",
     "fsspec>=2023.6.0",
     "numpy>=1.24.3; python_version < '3.12'",
     "numpy>=1.26.0; python_version >= '3.12'",
