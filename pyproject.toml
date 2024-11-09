@@ -98,6 +98,10 @@ lint.ignore = [
     "F403", # init files may have star imports for now
 ]
 
+[tool.coverage.report]
+show_missing = true
+skip_empty = true
+
 [tool.coverage.run]
-parallel = true
-source = ["trainer"]
+source = ["trainer", "tests"]
+command_line = "-m pytest"
