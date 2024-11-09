@@ -1,38 +1,41 @@
 import importlib
+import importlib.util
 import os
 import random
+from collections.abc import Iterator
 from typing import Optional
 
 import numpy as np
 import torch
+from torch.nn import Parameter
 
-from trainer.config import TrainerArgs
+from trainer.config import TrainerArgs, TrainerConfig
 from trainer.logger import logger
 from trainer.torch import NoamLR, StepwiseGradualLR
 from trainer.utils.distributed import rank_zero_logger_info
 
 
-def is_apex_available():
+def is_apex_available() -> bool:
     return importlib.util.find_spec("apex") is not None
 
 
-def is_mlflow_available():
+def is_mlflow_available() -> bool:
     return importlib.util.find_spec("mlflow") is not None
 
 
-def is_aim_available():
+def is_aim_available() -> bool:
     return importlib.util.find_spec("aim") is not None
 
 
-def is_wandb_available():
+def is_wandb_available() -> bool:
     return importlib.util.find_spec("wandb") is not None
 
 
-def is_clearml_available():
+def is_clearml_available() -> bool:
     return importlib.util.find_spec("clearml") is not None
 
 
-def print_training_env(args, config):
+def print_training_env(args: TrainerArgs, config: TrainerConfig) -> None:
     """Print training environment."""
     rank_zero_logger_info(" > Training Environment:", logger)
 
@@ -67,7 +70,7 @@ def setup_torch_training_env(
     cudnn_benchmark: bool,
     cudnn_deterministic: bool,
     use_ddp: bool = False,
-    training_seed=54321,
+    training_seed: int = 54321,
     allow_tf32: bool = False,
     gpu=None,
 ) -> tuple[bool, int]:
@@ -134,6 +137,7 @@ def get_scheduler(
     """
     if lr_scheduler is None:
         return None
+    scheduler: type[torch.optim.lr_scheduler._LRScheduler]
     if lr_scheduler.lower() == "noamlr":
         scheduler = NoamLR
     elif lr_scheduler.lower() == "stepwisegraduallr":
@@ -147,8 +151,8 @@ def get_optimizer(
     optimizer_name: str,
     optimizer_params: dict,
     lr: float,
-    model: torch.nn.Module = None,
-    parameters: Optional[list] = None,
+    model: Optional[torch.nn.Module] = None,
+    parameters: Optional[Iterator[Parameter]] = None,
 ) -> torch.optim.Optimizer:
     """Find, initialize and return a Torch optimizer.
 

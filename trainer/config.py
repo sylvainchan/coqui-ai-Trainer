@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Optional, Union
+from typing import Any, Optional, Union
 
 from coqpit import Coqpit
 
@@ -192,13 +192,13 @@ class TrainerConfig(Coqpit):
     optimizer: Optional[Union[str, list[str]]] = field(
         default=None, metadata={"help": "Optimizer(s) to use. Defaults to None"}
     )
-    optimizer_params: Union[dict, list[dict]] = field(
+    optimizer_params: Union[dict[str, Any], list[dict[str, Any]]] = field(
         default_factory=dict, metadata={"help": "Optimizer(s) arguments. Defaults to {}"}
     )
     lr_scheduler: Optional[Union[str, list[str]]] = field(
         default=None, metadata={"help": "Learning rate scheduler(s) to use. Defaults to None"}
     )
-    lr_scheduler_params: dict = field(
+    lr_scheduler_params: dict[str, Any] = field(
         default_factory=dict, metadata={"help": "Learning rate scheduler(s) arguments. Defaults to {}"}
     )
     use_grad_scaler: bool = field(

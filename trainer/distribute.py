@@ -5,10 +5,11 @@ import pathlib
 import subprocess
 import time
 
-from trainer import TrainerArgs, logger
+from trainer import TrainerArgs
+from trainer.logger import logger
 
 
-def distribute():
+def distribute() -> None:
     """
     Call 👟Trainer training script in DDP mode.
     """

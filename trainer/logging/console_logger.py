@@ -1,6 +1,7 @@
 import datetime
 import logging
 from dataclasses import dataclass
+from typing import Optional
 
 from trainer.utils.distributed import rank_zero_only
 
@@ -20,15 +21,15 @@ class tcolors:
 
 
 class ConsoleLogger:
-    def __init__(self):
+    def __init__(self) -> None:
         # TODO: color code for value changes
         # use these to compare values between iterations
         self.old_train_loss_dict = None
         self.old_epoch_loss_dict = None
-        self.old_eval_loss_dict = None
+        self.old_eval_loss_dict: dict[str, float] = {}
 
     @staticmethod
-    def log_with_flush(msg: str):
+    def log_with_flush(msg: str) -> None:
         if logger is not None:
             logger.info(msg)
             for handler in logger.handlers:
@@ -37,12 +38,12 @@ class ConsoleLogger:
             print(msg, flush=True)
 
     @staticmethod
-    def get_time():
+    def get_time() -> str:
         now = datetime.datetime.now()
         return now.strftime("%Y-%m-%d %H:%M:%S")
 
     @rank_zero_only
-    def print_epoch_start(self, epoch, max_epoch, output_path=None):
+    def print_epoch_start(self, epoch: int, max_epoch: int, output_path: Optional[str] = None) -> None:
         self.log_with_flush(
             "\n{}{} > EPOCH: {}/{}{}".format(tcolors.UNDERLINE, tcolors.BOLD, epoch, max_epoch, tcolors.ENDC),
         )
@@ -50,11 +51,13 @@ class ConsoleLogger:
             self.log_with_flush(f" --> {output_path}")
 
     @rank_zero_only
-    def print_train_start(self):
+    def print_train_start(self) -> None:
         self.log_with_flush(f"\n{tcolors.BOLD} > TRAINING ({self.get_time()}) {tcolors.ENDC}")
 
     @rank_zero_only
-    def print_train_step(self, batch_steps, step, global_step, loss_dict, avg_loss_dict):
+    def print_train_step(
+        self, batch_steps: int, step: int, global_step: int, loss_dict: dict, avg_loss_dict: dict
+    ) -> None:
         indent = "     | > "
         self.log_with_flush("")
         log_text = "{}   --> TIME: {} -- STEP: {}/{} -- GLOBAL_STEP: {}{}\n".format(
@@ -70,7 +73,7 @@ class ConsoleLogger:
 
     # pylint: disable=unused-argument
     @rank_zero_only
-    def print_train_epoch_end(self, global_step, epoch, epoch_time, print_dict):
+    def print_train_epoch_end(self, global_step: int, epoch: int, epoch_time, print_dict: dict) -> None:
         indent = "     | > "
         log_text = f"\n{tcolors.BOLD}   --> TRAIN PERFORMACE -- EPOCH TIME: {epoch_time:.2f} sec -- GLOBAL_STEP: {global_step}{tcolors.ENDC}\n"
         for key, value in print_dict.items():
@@ -78,11 +81,11 @@ class ConsoleLogger:
         self.log_with_flush(log_text)
 
     @rank_zero_only
-    def print_eval_start(self):
+    def print_eval_start(self) -> None:
         self.log_with_flush(f"\n{tcolors.BOLD} > EVALUATION {tcolors.ENDC}\n")
 
     @rank_zero_only
-    def print_eval_step(self, step, loss_dict, avg_loss_dict):
+    def print_eval_step(self, step: int, loss_dict: dict, avg_loss_dict: dict) -> None:
         indent = "     | > "
         log_text = f"{tcolors.BOLD}   --> STEP: {step}{tcolors.ENDC}\n"
         for key, value in loss_dict.items():
@@ -94,7 +97,7 @@ class ConsoleLogger:
         self.log_with_flush(log_text)
 
     @rank_zero_only
-    def print_epoch_end(self, epoch, avg_loss_dict):
+    def print_epoch_end(self, epoch: int, avg_loss_dict: dict) -> None:
         indent = "     | > "
         log_text = "\n  {}--> EVAL PERFORMANCE{}\n".format(tcolors.BOLD, tcolors.ENDC)
         for key, value in avg_loss_dict.items():
@@ -102,7 +105,7 @@ class ConsoleLogger:
             color = ""
             sign = "+"
             diff = 0
-            if self.old_eval_loss_dict is not None and key in self.old_eval_loss_dict:
+            if key in self.old_eval_loss_dict:
                 diff = value - self.old_eval_loss_dict[key]
                 if diff < 0:
                     color = tcolors.OKGREEN

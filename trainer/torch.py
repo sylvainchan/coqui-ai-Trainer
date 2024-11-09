@@ -1,3 +1,4 @@
+from collections.abc import Iterator
 from typing import Optional
 
 import numpy as np
@@ -35,7 +36,7 @@ class DistributedSamplerWrapper(DistributedSampler):
         rank: Optional[int] = None,
         shuffle: bool = True,
         seed: int = 0,
-    ):
+    ) -> None:
         super().__init__(
             sampler,
             num_replicas=num_replicas,
@@ -44,7 +45,7 @@ class DistributedSamplerWrapper(DistributedSampler):
             seed=seed,
         )
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator:
         indices = list(self.dataset)[: self.total_size]
 
         # Add extra samples to make it evenly divisible
@@ -58,27 +59,27 @@ class DistributedSamplerWrapper(DistributedSampler):
 
         return iter(indices)
 
-    def set_epoch(self, epoch):
+    def set_epoch(self, epoch: int) -> None:
         super().set_epoch(epoch)
         if hasattr(self.dataset, "set_epoch"):
             self.dataset.set_epoch(epoch)
         elif hasattr(self.dataset, "generator"):
             self.dataset.generator = torch.Generator().manual_seed(self.seed + epoch)
 
-    def state_dict(self):
+    def state_dict(self) -> dict:
         return self.dataset.state_dict()
 
-    def load_state_dict(self, state_dict):
+    def load_state_dict(self, state_dict: dict) -> None:
         self.dataset.load_state_dict(state_dict)
 
 
 # pylint: disable=protected-access
 class NoamLR(torch.optim.lr_scheduler._LRScheduler):
-    def __init__(self, optimizer, warmup_steps=0.1, last_epoch=-1):
+    def __init__(self, optimizer: torch.optim.Optimizer, warmup_steps: float = 0.1, last_epoch: int = -1):
         self.warmup_steps = float(warmup_steps)
         super().__init__(optimizer, last_epoch)
 
-    def get_lr(self):
+    def get_lr(self) -> list[float]:
         step = max(self.last_epoch, 1)
         return [
             base_lr * self.warmup_steps**0.5 * min(step * self.warmup_steps**-1.5, step**-0.5)
@@ -91,7 +92,7 @@ class StepwiseGradualLR(torch.optim.lr_scheduler._LRScheduler):
     """Hardcoded step-wise learning rate scheduling.
     Necessary for CapacitronVAE"""
 
-    def __init__(self, optimizer, gradual_learning_rates, last_epoch=-1):
+    def __init__(self, optimizer: torch.optim.Optimizer, gradual_learning_rates, last_epoch: int = -1) -> None:
         self.gradual_learning_rates = gradual_learning_rates
         super().__init__(optimizer, last_epoch)
 
