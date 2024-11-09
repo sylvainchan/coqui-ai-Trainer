@@ -184,7 +184,7 @@ class Trainer:
 
         if parse_command_line_args:
             # parse command-line arguments to override TrainerArgs()
-            args, coqpit_overrides = self.parse_argv(args)
+            coqpit_overrides = args.parse_known_args(arg_prefix="")
 
             # get ready for training and parse command-line arguments to override the model config
             config, new_fields = self.init_training(args, coqpit_overrides, config)
@@ -455,18 +455,6 @@ class Trainer:
             with open(file_path, encoding="utf8") as f:
                 self.dashboard_logger.add_text("training-script", f"{f.read()}", 0)
             shutil.copyfile(file_path, os.path.join(self.output_path, file_name))
-
-    @staticmethod
-    def parse_argv(args: Union[Coqpit, list]):
-        """Parse command line arguments to init or override `TrainerArgs()`."""
-        if isinstance(args, Coqpit):
-            parser = args.init_argparse(arg_prefix="")
-        else:
-            train_config = TrainerArgs()
-            parser = train_config.init_argparse(arg_prefix="")
-        training_args, coqpit_overrides = parser.parse_known_args()
-        args.parse_args(training_args)
-        return args, coqpit_overrides
 
     @staticmethod
     def init_loggers(config: "Coqpit", output_path: str, dashboard_logger=None, c_logger=None):
