@@ -1,11 +1,8 @@
-from pathlib import Path
-
 from trainer.generic_utils import remove_experiment_folder
 
 
-def test_remove_experiment_folder():
-    output_dir = Path("output")
-    run_dir = output_dir / "run"
+def test_remove_experiment_folder(tmp_path):
+    run_dir = tmp_path / "run"
     run_dir.mkdir(exist_ok=True, parents=True)
 
     remove_experiment_folder(run_dir)

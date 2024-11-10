@@ -16,7 +16,6 @@ def main():
     trainer = Trainer(
         train_args,
         config,
-        config.output_path,
         model=model,
         train_samples=model.get_data_loader(config, None, False, None, None, None),
         eval_samples=model.get_data_loader(config, None, True, None, None, None),

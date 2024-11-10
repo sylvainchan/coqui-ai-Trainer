@@ -19,7 +19,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP_th
 from torch.utils.data import DataLoader
 
 from trainer.callbacks import TrainerCallback
-from trainer.config import TrainerArgs
+from trainer.config import TrainerArgs, TrainerConfig
 from trainer.generic_utils import (
     KeepAverage,
     count_parameters,
@@ -65,11 +65,12 @@ class Trainer:
     def __init__(  # pylint: disable=dangerous-default-value
         self,
         args: TrainerArgs,
-        config: Coqpit,
-        output_path: str,
-        c_logger: ConsoleLogger = None,
-        dashboard_logger: BaseDashboardLogger = None,
-        model: nn.Module = None,
+        config: TrainerConfig,
+        output_path: Optional[Union[str, os.PathLike[Any]]] = None,
+        *,
+        c_logger: Optional[ConsoleLogger] = None,
+        dashboard_logger: Optional[BaseDashboardLogger] = None,
+        model: Optional[nn.Module] = None,
         get_model: Optional[Callable] = None,
         get_data_samples: Optional[Callable] = None,
         train_samples: Optional[list] = None,
@@ -99,7 +100,8 @@ class Trainer:
             config (Coqpit): Model config object. It includes all the values necessary for initializing, training, evaluating
                 and testing the model.
 
-            output_path (str): Path to the output training folder. All the files are saved under thi path.
+            output_path (str or Path, optional): Path to the output training folder. All
+                the files are saved under this path. Uses value from config if None.
 
             c_logger (ConsoleLogger, optional): Console logger for printing training status. If not provided, the default
                 console logger is used. Defaults to None.
@@ -158,7 +160,7 @@ class Trainer:
             >>> args = TrainerArgs(...)
             >>> config = ModelConfig(...)
             >>> model = Model(config)
-            >>> trainer = Trainer(args, config, output_path, model=model)
+            >>> trainer = Trainer(args, config, model=model)
             >>> trainer.fit()
 
             TODO:
@@ -190,7 +192,7 @@ class Trainer:
             output_path = args.continue_path
         else:
             # override the output path if it is provided
-            output_path = config.output_path if output_path is None else output_path
+            output_path = config.output_path if output_path is None else str(output_path)
             # create a new output folder name
             output_path = get_experiment_folder_path(output_path, config.run_name)
             os.makedirs(output_path, exist_ok=True)

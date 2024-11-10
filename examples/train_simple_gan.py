@@ -166,6 +166,6 @@ if __name__ == "__main__":
     config.grad_clip = None
 
     model = GANModel()
-    trainer = Trainer(TrainerArgs(), config, model=model, output_path=os.getcwd(), gpu=0 if is_cuda else None)
+    trainer = Trainer(TrainerArgs(), config, model=model, gpu=0 if is_cuda else None)
     trainer.config.epochs = 10
     trainer.fit()

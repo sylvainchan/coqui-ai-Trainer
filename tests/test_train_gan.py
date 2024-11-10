@@ -63,7 +63,7 @@ class Discriminator(nn.Module):
         return validity
 
 
-def test_overfit_mnist_simple_gan():
+def test_overfit_mnist_simple_gan(tmp_path):
     @dataclass
     class GANModelConfig(TrainerConfig):
         epochs: int = 1
@@ -137,7 +137,7 @@ def test_overfit_mnist_simple_gan():
     config.grad_clip = None
 
     model = GANModel()
-    trainer = Trainer(TrainerArgs(), config, model=model, output_path=os.getcwd(), gpu=0 if is_cuda else None)
+    trainer = Trainer(TrainerArgs(), config, output_path=tmp_path, model=model, gpu=0 if is_cuda else None)
 
     trainer.config.epochs = 1
     trainer.fit()
@@ -155,7 +155,7 @@ def test_overfit_mnist_simple_gan():
     assert loss_g1 > loss_g2, f"Generator loss should decrease. {loss_g1} > {loss_g2}"
 
 
-def test_overfit_accelerate_mnist_simple_gan():
+def test_overfit_accelerate_mnist_simple_gan(tmp_path):
     @dataclass
     class GANModelConfig(TrainerConfig):
         epochs: int = 1
@@ -231,7 +231,7 @@ def test_overfit_accelerate_mnist_simple_gan():
 
     model = GANModel()
     trainer = Trainer(
-        TrainerArgs(use_accelerate=True), config, model=model, output_path=os.getcwd(), gpu=0 if is_cuda else None
+        TrainerArgs(use_accelerate=True), config, output_path=tmp_path, model=model, gpu=0 if is_cuda else None
     )
 
     trainer.eval_epoch()
@@ -249,7 +249,7 @@ def test_overfit_accelerate_mnist_simple_gan():
     assert loss_g1 > loss_g2, f"Generator loss should decrease. {loss_g1} > {loss_g2}"
 
 
-def test_overfit_manual_optimize_mnist_simple_gan():
+def test_overfit_manual_optimize_mnist_simple_gan(tmp_path):
     @dataclass
     class GANModelConfig(TrainerConfig):
         epochs: int = 1
@@ -342,7 +342,7 @@ def test_overfit_manual_optimize_mnist_simple_gan():
     config.grad_clip = None
 
     model = GANModel()
-    trainer = Trainer(TrainerArgs(), config, model=model, output_path=os.getcwd(), gpu=0 if is_cuda else None)
+    trainer = Trainer(TrainerArgs(), config, output_path=tmp_path, model=model, gpu=0 if is_cuda else None)
 
     trainer.config.epochs = 1
     trainer.fit()
@@ -360,7 +360,7 @@ def test_overfit_manual_optimize_mnist_simple_gan():
     assert loss_g1 > loss_g2, f"Generator loss should decrease. {loss_g1} > {loss_g2}"
 
 
-def test_overfit_manual_optimize_grad_accum_mnist_simple_gan():
+def test_overfit_manual_optimize_grad_accum_mnist_simple_gan(tmp_path):
     @dataclass
     class GANModelConfig(TrainerConfig):
         epochs: int = 1
@@ -456,7 +456,7 @@ def test_overfit_manual_optimize_grad_accum_mnist_simple_gan():
     config.grad_clip = None
 
     model = GANModel()
-    trainer = Trainer(TrainerArgs(), config, model=model, output_path=os.getcwd(), gpu=0 if is_cuda else None)
+    trainer = Trainer(TrainerArgs(), config, output_path=tmp_path, model=model, gpu=0 if is_cuda else None)
 
     trainer.config.epochs = 1
     trainer.fit()
@@ -474,7 +474,7 @@ def test_overfit_manual_optimize_grad_accum_mnist_simple_gan():
     assert loss_g1 > loss_g2, f"Generator loss should decrease. {loss_g1} > {loss_g2}"
 
 
-def test_overfit_manual_accelerate_optimize_grad_accum_mnist_simple_gan():
+def test_overfit_manual_accelerate_optimize_grad_accum_mnist_simple_gan(tmp_path):
     @dataclass
     class GANModelConfig(TrainerConfig):
         epochs: int = 1
@@ -573,7 +573,7 @@ def test_overfit_manual_accelerate_optimize_grad_accum_mnist_simple_gan():
 
     model = GANModel()
     trainer = Trainer(
-        TrainerArgs(use_accelerate=True), config, model=model, output_path=os.getcwd(), gpu=0 if is_cuda else None
+        TrainerArgs(use_accelerate=True), config, output_path=tmp_path, model=model, gpu=0 if is_cuda else None
     )
 
     trainer.config.epochs = 1
