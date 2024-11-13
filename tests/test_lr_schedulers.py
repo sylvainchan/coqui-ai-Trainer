@@ -1,4 +1,3 @@
-import os
 import time
 
 import torch
@@ -10,7 +9,7 @@ from trainer.generic_utils import KeepAverage
 is_cuda = torch.cuda.is_available()
 
 
-def test_train_mnist():
+def test_train_mnist(tmp_path):
     model = MnistModel()
     # Test StepwiseGradualLR
     config = MnistModelConfig(
@@ -23,7 +22,7 @@ def test_train_mnist():
         },
         scheduler_after_epoch=False,
     )
-    trainer = Trainer(TrainerArgs(), config, model=model, output_path=os.getcwd(), gpu=0 if is_cuda else None)
+    trainer = Trainer(TrainerArgs(), config, output_path=tmp_path, model=model, gpu=0 if is_cuda else None)
     trainer.train_loader = trainer.get_train_dataloader(
         trainer.training_assets,
         trainer.train_samples,

@@ -1,3 +1,4 @@
+import functools
 import gc
 import importlib
 import logging
@@ -19,12 +20,13 @@ from torch.nn.parallel import DistributedDataParallel as DDP_th
 from torch.utils.data import DataLoader
 
 from trainer.callbacks import TrainerCallback
-from trainer.config import TrainerArgs
+from trainer.config import TrainerArgs, TrainerConfig
 from trainer.generic_utils import (
     KeepAverage,
     count_parameters,
     get_experiment_folder_path,
     get_git_branch,
+    is_pytorch_at_least_2_3,
     is_pytorch_at_least_2_4,
     isimplemented,
     remove_experiment_folder,
@@ -60,16 +62,22 @@ logger = logging.getLogger("trainer")
 if is_apex_available():
     from apex import amp  # pylint: disable=import-error
 
+if is_pytorch_at_least_2_3():
+    GradScaler = functools.partial(torch.GradScaler, device="cuda")
+else:
+    GradScaler = torch.cuda.amp.GradScaler
+
 
 class Trainer:
     def __init__(  # pylint: disable=dangerous-default-value
         self,
         args: TrainerArgs,
-        config: Coqpit,
-        output_path: str,
-        c_logger: ConsoleLogger = None,
-        dashboard_logger: BaseDashboardLogger = None,
-        model: nn.Module = None,
+        config: TrainerConfig,
+        output_path: Optional[Union[str, os.PathLike[Any]]] = None,
+        *,
+        c_logger: Optional[ConsoleLogger] = None,
+        dashboard_logger: Optional[BaseDashboardLogger] = None,
+        model: Optional[nn.Module] = None,
         get_model: Optional[Callable] = None,
         get_data_samples: Optional[Callable] = None,
         train_samples: Optional[list] = None,
@@ -99,7 +107,8 @@ class Trainer:
             config (Coqpit): Model config object. It includes all the values necessary for initializing, training, evaluating
                 and testing the model.
 
-            output_path (str): Path to the output training folder. All the files are saved under thi path.
+            output_path (str or Path, optional): Path to the output training folder. All
+                the files are saved under this path. Uses value from config if None.
 
             c_logger (ConsoleLogger, optional): Console logger for printing training status. If not provided, the default
                 console logger is used. Defaults to None.
@@ -158,7 +167,7 @@ class Trainer:
             >>> args = TrainerArgs(...)
             >>> config = ModelConfig(...)
             >>> model = Model(config)
-            >>> trainer = Trainer(args, config, output_path, model=model)
+            >>> trainer = Trainer(args, config, model=model)
             >>> trainer.fit()
 
             TODO:
@@ -175,7 +184,7 @@ class Trainer:
 
         if parse_command_line_args:
             # parse command-line arguments to override TrainerArgs()
-            args, coqpit_overrides = self.parse_argv(args)
+            coqpit_overrides = args.parse_known_args(arg_prefix="")
 
             # get ready for training and parse command-line arguments to override the model config
             config, new_fields = self.init_training(args, coqpit_overrides, config)
@@ -190,9 +199,9 @@ class Trainer:
             output_path = args.continue_path
         else:
             # override the output path if it is provided
-            output_path = config.output_path if output_path is None else output_path
+            output_path = config.output_path if output_path is None else str(output_path)
             # create a new output folder name
-            output_path = get_experiment_folder_path(config.output_path, config.run_name)
+            output_path = get_experiment_folder_path(output_path, config.run_name)
             os.makedirs(output_path, exist_ok=True)
 
         # copy training assets to the output folder
@@ -329,7 +338,7 @@ class Trainer:
             if self.use_apex:
                 self.scaler = None
                 self.model, self.optimizer = amp.initialize(self.model, self.optimizer, opt_level="O1")
-            self.scaler = torch.cuda.amp.GradScaler()
+            self.scaler = GradScaler()
         else:
             self.scaler = None
 
@@ -338,7 +347,6 @@ class Trainer:
             (self.model, self.optimizer, self.scaler, self.restore_step, self.restore_epoch) = self.restore_model(
                 self.config, args.restore_path, self.model, self.optimizer, self.scaler
             )
-            self.scaler = torch.cuda.amp.GradScaler()
 
         # setup scheduler
         self.scheduler = self.get_scheduler(self.model, self.config, self.optimizer)
@@ -447,18 +455,6 @@ class Trainer:
             with open(file_path, encoding="utf8") as f:
                 self.dashboard_logger.add_text("training-script", f"{f.read()}", 0)
             shutil.copyfile(file_path, os.path.join(self.output_path, file_name))
-
-    @staticmethod
-    def parse_argv(args: Union[Coqpit, list]):
-        """Parse command line arguments to init or override `TrainerArgs()`."""
-        if isinstance(args, Coqpit):
-            parser = args.init_argparse(arg_prefix="")
-        else:
-            train_config = TrainerArgs()
-            parser = train_config.init_argparse(arg_prefix="")
-        training_args, coqpit_overrides = parser.parse_known_args()
-        args.parse_args(training_args)
-        return args, coqpit_overrides
 
     @staticmethod
     def init_loggers(config: "Coqpit", output_path: str, dashboard_logger=None, c_logger=None):
@@ -590,8 +586,8 @@ class Trainer:
         restore_path: Union[str, os.PathLike[Any]],
         model: nn.Module,
         optimizer: torch.optim.Optimizer,
-        scaler: torch.cuda.amp.GradScaler = None,
-    ) -> tuple[nn.Module, torch.optim.Optimizer, torch.cuda.amp.GradScaler, int]:
+        scaler: Optional["torch.GradScaler"] = None,
+    ) -> tuple[nn.Module, torch.optim.Optimizer, "torch.GradScaler", int]:
         """Restore training from an old run. It restores model, optimizer, AMP scaler and training stats.
 
         Args:
@@ -599,10 +595,10 @@ class Trainer:
             restore_path (str): Path to the restored training run.
             model (nn.Module): Model to restored.
             optimizer (torch.optim.Optimizer): Optimizer to restore.
-            scaler (torch.cuda.amp.GradScaler, optional): AMP scaler to restore. Defaults to None.
+            scaler (torch.GradScaler, optional): AMP scaler to restore. Defaults to None.
 
         Returns:
-            Tuple[nn.Module, torch.optim.Optimizer, torch.cuda.amp.GradScaler, int]: [description]
+            Tuple[nn.Module, torch.optim.Optimizer, torch.GradScaler, int]: [description]
         """
 
         def _restore_list_objs(states, obj):
@@ -948,7 +944,7 @@ class Trainer:
     def _compute_grad_norm(self, optimizer: torch.optim.Optimizer):
         return torch.norm(torch.cat([param.grad.view(-1) for param in self.master_params(optimizer)], dim=0), p=2)
 
-    def _grad_clipping(self, grad_clip: float, optimizer: torch.optim.Optimizer, scaler: torch.cuda.amp.GradScaler):
+    def _grad_clipping(self, grad_clip: float, optimizer: torch.optim.Optimizer, scaler: Optional["torch.GradScaler"]):
         """Perform gradient clipping"""
         if grad_clip is not None and grad_clip > 0:
             if scaler:
@@ -964,7 +960,7 @@ class Trainer:
         batch: dict,
         model: nn.Module,
         optimizer: torch.optim.Optimizer,
-        scaler: torch.cuda.amp.GradScaler,
+        scaler: "torch.GradScaler",
         criterion: nn.Module,
         scheduler: Union[torch.optim.lr_scheduler._LRScheduler, list, dict],  # pylint: disable=protected-access
         config: Coqpit,
