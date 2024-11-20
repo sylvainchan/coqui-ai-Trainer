@@ -58,10 +58,16 @@ dev = [
     "pytest>=8",
     "ruff==0.6.9",
 ]
-# Dependencies for running the tests
 test = [
     "accelerate>=0.20.0",
     "torchvision>=0.15.1",
+]
+mypy = [
+    "matplotlib>=3.9.2",
+    "mlflow>=2.18.0",
+    "mypy>=1.13.0",
+    "types-psutil>=6.1.0.20241102",
+    "wandb>=0.18.7",
 ]
 
 [tool.uv]
@@ -105,3 +111,16 @@ skip_empty = true
 [tool.coverage.run]
 source = ["trainer", "tests"]
 command_line = "-m pytest"
+
+[[tool.mypy.overrides]]
+module = [
+    "accelerate",
+    "aim",
+    "aim.sdk.run",
+    "apex",
+    "clearml",
+    "fsspec",
+    "plotly",
+    "soundfile",
+]
+ignore_missing_imports = true
