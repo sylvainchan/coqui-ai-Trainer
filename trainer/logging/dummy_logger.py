@@ -1,6 +1,11 @@
-from typing import Union
+from typing import TYPE_CHECKING, Union
 
 from trainer.logging.base_dash_logger import BaseDashboardLogger
+
+if TYPE_CHECKING:
+    import matplotlib
+    import numpy as np
+    import plotly
 
 
 class DummyLogger(BaseDashboardLogger):

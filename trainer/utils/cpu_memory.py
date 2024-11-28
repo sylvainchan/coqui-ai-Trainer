@@ -32,7 +32,7 @@ def set_cpu_memory_limit(num_gigabytes):
         pass
 
 
-def is_out_of_cpu_memory(exception):
+def is_out_of_cpu_memory(exception: Exception) -> bool:
     return (
         isinstance(exception, RuntimeError)
         and len(exception.args) == 1

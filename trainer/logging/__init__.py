@@ -1,31 +1,35 @@
 import logging
 import os
+from typing import Union
 
+from trainer.config import TrainerConfig
+from trainer.logging.base_dash_logger import BaseDashboardLogger
 from trainer.logging.console_logger import ConsoleLogger
 from trainer.logging.dummy_logger import DummyLogger
 
-# pylint: disable=import-outside-toplevel
+__all__ = ["ConsoleLogger", "DummyLogger"]
 
 
 logger = logging.getLogger("trainer")
 
 
-def get_mlflow_tracking_url():
+def get_mlflow_tracking_url() -> Union[str, None]:
     if "MLFLOW_TRACKING_URI" in os.environ:
         return os.environ["MLFLOW_TRACKING_URI"]
     return None
 
 
-def get_ai_repo_url():
+def get_ai_repo_url() -> Union[str, None]:
     if "AIM_TRACKING_URI" in os.environ:
         return os.environ["AIM_TRACKING_URI"]
     return None
 
 
-def logger_factory(config, output_path):
+def logger_factory(config: TrainerConfig, output_path: str) -> BaseDashboardLogger:
     run_name = config.run_name
     project_name = config.project_name
     log_uri = config.logger_uri if config.logger_uri else output_path
+    dashboard_logger: BaseDashboardLogger
 
     if config.dashboard_logger == "tensorboard":
         from trainer.logging.tensorboard_logger import TensorboardLogger

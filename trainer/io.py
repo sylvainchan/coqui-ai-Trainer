@@ -10,6 +10,7 @@ from urllib.parse import urlparse
 import fsspec
 import torch
 from coqpit import Coqpit
+from torch.types import Storage
 
 from trainer.generic_utils import is_pytorch_at_least_2_4
 from trainer.logger import logger
@@ -60,7 +61,7 @@ def copy_model_files(config: Coqpit, out_path: Union[str, os.PathLike[Any]], new
 
 def load_fsspec(
     path: Union[str, os.PathLike[Any]],
-    map_location: Union[str, Callable, torch.device, dict[Union[str, torch.device], Union[str, torch.device]]] = None,
+    map_location: Optional[Union[str, Callable[[Storage, str], Storage], torch.device, dict[str, str]]] = None,
     cache: bool = True,
     **kwargs,
 ) -> Any:
@@ -195,7 +196,7 @@ def save_checkpoint(
 
 def save_best_model(
     current_loss: Union[dict, float],
-    best_loss: Union[dict, float],
+    best_loss: Union[dict[str, Optional[float]], float],
     config: Union[dict, Coqpit],
     model: torch.nn.Module,
     optimizer: torch.optim.Optimizer,
@@ -208,12 +209,13 @@ def save_best_model(
     save_func: Optional[Callable] = None,
     **kwargs,
 ) -> Union[dict, float]:
-    if isinstance(current_loss, dict):
+    if isinstance(current_loss, dict) and isinstance(best_loss, dict):
         use_eval_loss = current_loss["eval_loss"] is not None and best_loss["eval_loss"] is not None
         is_save_model = (use_eval_loss and current_loss["eval_loss"] < best_loss["eval_loss"]) or (
             not use_eval_loss and current_loss["train_loss"] < best_loss["train_loss"]
         )
     else:
+        assert isinstance(current_loss, float) and isinstance(best_loss, float)
         is_save_model = current_loss < best_loss
 
     is_save_model = is_save_model and current_step > keep_after
@@ -249,7 +251,7 @@ def save_best_model(
     return best_loss
 
 
-def get_last_checkpoint(path: Union[str, os.PathLike]) -> tuple[str, str]:
+def get_last_checkpoint(path: Union[str, os.PathLike[Any]]) -> tuple[str, str]:
     """Get latest checkpoint or/and best model in path.
 
     It is based on globbing for `*.pth` and the RegEx
@@ -274,7 +276,7 @@ def get_last_checkpoint(path: Union[str, os.PathLike]) -> tuple[str, str]:
         # back if it exists on the path
         file_names = [scheme + "://" + file_name for file_name in file_names]
     last_models = {}
-    last_model_nums = {}
+    last_model_nums: dict[str, int] = {}
     for key in ["checkpoint", "best_model"]:
         last_model_num = None
         last_model = None
@@ -357,6 +359,4 @@ def sort_checkpoints(
             if regex_match is not None and regex_match.groups() is not None:
                 ordering_and_checkpoint_path.append((int(regex_match.groups()[0]), path))
 
-    checkpoints_sorted = sorted(ordering_and_checkpoint_path)
-    checkpoints_sorted = [checkpoint[1] for checkpoint in checkpoints_sorted]
-    return checkpoints_sorted
+    return [checkpoint[1] for checkpoint in sorted(ordering_and_checkpoint_path)]

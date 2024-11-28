@@ -1,4 +1,5 @@
 # edited from https://github.com/fastai/imagenet-fast/blob/master/imagenet_nv/distributed.py
+import logging
 import os
 from functools import wraps
 from typing import Any, Callable, Optional
@@ -7,7 +8,7 @@ import torch
 import torch.distributed as dist
 
 
-def is_dist_avail_and_initialized():
+def is_dist_avail_and_initialized() -> bool:
     if not dist.is_available():
         return False
     if not dist.is_initialized():
@@ -15,7 +16,7 @@ def is_dist_avail_and_initialized():
     return True
 
 
-def get_rank():
+def get_rank() -> int:
     rank_keys = ("RANK", "LOCAL_RANK", "SLURM_PROCID", "JSM_NAMESPACE_RANK")
     for key in rank_keys:
         rank = os.environ.get(key)
@@ -24,7 +25,7 @@ def get_rank():
     return 0
 
 
-def is_main_process():
+def is_main_process() -> bool:
     return get_rank() == 0
 
 
@@ -44,18 +45,18 @@ def rank_zero_print(message: str, *args, **kwargs) -> None:  # pylint: disable=u
 
 
 @rank_zero_only
-def rank_zero_logger_info(message: str, logger: "Logger", *args, **kwargs) -> None:  # pylint: disable=unused-argument
+def rank_zero_logger_info(message: str, logger: logging.Logger, *args, **kwargs) -> None:  # pylint: disable=unused-argument
     logger.info(message)
 
 
-def reduce_tensor(tensor, num_gpus):
+def reduce_tensor(tensor: torch.Tensor, num_gpus: int) -> torch.Tensor:
     rt = tensor.clone()
     dist.all_reduce(rt, op=dist.reduce_op.SUM)
     rt /= num_gpus
     return rt
 
 
-def init_distributed(rank, num_gpus, group_name, dist_backend, dist_url):
+def init_distributed(rank: int, num_gpus: int, group_name: str, dist_backend, dist_url) -> None:
     assert torch.cuda.is_available(), "Distributed mode requires CUDA."
 
     # Set cuda device so everything is done on the right GPU.

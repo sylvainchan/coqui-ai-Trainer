@@ -1,17 +1,20 @@
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
+
+if TYPE_CHECKING:
+    from trainer import Trainer
 
 
 class TrainerCallback:
     def __init__(self) -> None:
-        self.callbacks_on_init_start = []
-        self.callbacks_on_init_end = []
-        self.callbacks_on_epoch_start = []
-        self.callbacks_on_epoch_end = []
-        self.callbacks_on_train_epoch_start = []
-        self.callbacks_on_train_epoch_end = []
-        self.callbacks_on_train_step_start = []
-        self.callbacks_on_train_step_end = []
-        self.callbacks_on_keyboard_interrupt = []
+        self.callbacks_on_init_start: list[Callable] = []
+        self.callbacks_on_init_end: list[Callable] = []
+        self.callbacks_on_epoch_start: list[Callable] = []
+        self.callbacks_on_epoch_end: list[Callable] = []
+        self.callbacks_on_train_epoch_start: list[Callable] = []
+        self.callbacks_on_train_epoch_end: list[Callable] = []
+        self.callbacks_on_train_step_start: list[Callable] = []
+        self.callbacks_on_train_step_end: list[Callable] = []
+        self.callbacks_on_keyboard_interrupt: list[Callable] = []
 
     def parse_callbacks_dict(self, callbacks_dict: dict[str, Callable]) -> None:
         for key, value in callbacks_dict.items():
@@ -36,7 +39,7 @@ class TrainerCallback:
             else:
                 raise ValueError(f"Invalid callback key: {key}")
 
-    def on_init_start(self, trainer) -> None:
+    def on_init_start(self, trainer: "Trainer") -> None:
         if hasattr(trainer.model, "module"):
             if hasattr(trainer.model.module, "on_init_start"):
                 trainer.model.module.on_init_start(trainer)

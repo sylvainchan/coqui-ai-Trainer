@@ -1,6 +1,6 @@
 import functools
 import gc
-import importlib
+import importlib.util
 import logging
 import os
 import platform
@@ -8,13 +8,13 @@ import shutil
 import sys
 import time
 import traceback
+from collections.abc import Generator, Iterable
 from contextlib import nullcontext
 from inspect import signature
 from typing import Any, Callable, Optional, Union
 
 import torch
 import torch.distributed as dist
-from coqpit import Coqpit
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel as DDP_th
 from torch.utils.data import DataLoader
@@ -42,6 +42,7 @@ from trainer.io import (
 )
 from trainer.logging import ConsoleLogger, DummyLogger, logger_factory
 from trainer.logging.base_dash_logger import BaseDashboardLogger
+from trainer.model import TrainerModel
 from trainer.trainer_utils import (
     get_optimizer,
     get_scheduler,
@@ -77,14 +78,14 @@ class Trainer:
         *,
         c_logger: Optional[ConsoleLogger] = None,
         dashboard_logger: Optional[BaseDashboardLogger] = None,
-        model: Optional[nn.Module] = None,
+        model: Optional[TrainerModel] = None,
         get_model: Optional[Callable] = None,
         get_data_samples: Optional[Callable] = None,
         train_samples: Optional[list] = None,
         eval_samples: Optional[list] = None,
         test_samples: Optional[list] = None,
-        train_loader: DataLoader = None,
-        eval_loader: DataLoader = None,
+        train_loader: Optional[DataLoader] = None,
+        eval_loader: Optional[DataLoader] = None,
         training_assets: Optional[dict] = None,
         parse_command_line_args: bool = True,
         callbacks: Optional[dict[str, Callable]] = None,
@@ -101,10 +102,10 @@ class Trainer:
 
         Args:
 
-            args (Union[Coqpit, Namespace]): Training arguments parsed either from console by `argparse` or `TrainerArgs`
+            args (TrainerArgs): Training arguments parsed either from console by `argparse` or `TrainerArgs`
                 config object.
 
-            config (Coqpit): Model config object. It includes all the values necessary for initializing, training, evaluating
+            config (TrainerConfig): Model config object. It includes all the values necessary for initializing, training, evaluating
                 and testing the model.
 
             output_path (str or Path, optional): Path to the output training folder. All
@@ -116,7 +117,7 @@ class Trainer:
             dashboard_logger Union[TensorboardLogger, WandbLogger]: Dashboard logger. If not provided, the tensorboard logger is used.
                 Defaults to None.
 
-            model (nn.Module, optional): Initialized and ready-to-train model. If it is not defined, `Trainer`
+            model (TrainerModel, optional): Initialized and ready-to-train model. If it is not defined, `Trainer`
                 initializes a model from the provided config. Defaults to None.
 
             get_model (Callable):
@@ -189,7 +190,7 @@ class Trainer:
             # get ready for training and parse command-line arguments to override the model config
             config, new_fields = self.init_training(args, coqpit_overrides, config)
         elif args.continue_path or args.restore_path:
-            config, new_fields = self.init_training(args, {}, config)
+            config, new_fields = self.init_training(args, [], config)
         else:
             new_fields = {}
 
@@ -241,13 +242,16 @@ class Trainer:
         self.epochs_done = 0
         self.restore_step = 0
         self.restore_epoch = 0
-        self.best_loss = {"train_loss": float("inf"), "eval_loss": float("inf") if self.config.run_eval else None}
-        self.train_loader = None
-        self.test_loader = None
-        self.eval_loader = None
+        self.best_loss: Union[float, dict[str, Optional[float]]] = {
+            "train_loss": float("inf"),
+            "eval_loss": float("inf") if self.config.run_eval else None,
+        }
+        self.train_loader: Optional[DataLoader] = None
+        self.test_loader: Optional[DataLoader] = None
+        self.eval_loader: Optional[DataLoader] = None
 
-        self.keep_avg_train = None
-        self.keep_avg_eval = None
+        self.keep_avg_train: Optional[KeepAverage] = None
+        self.keep_avg_eval: Optional[KeepAverage] = None
 
         self.use_amp_scaler = (
             self.use_cuda
@@ -281,12 +285,12 @@ class Trainer:
         self.setup_small_run(args.small_run)
 
         # init the model
-        if model is None and get_model is None:
-            raise ValueError("[!] `model` and `get_model` cannot both be None.")
         if model is not None:
             self.model = model
-        else:
+        elif get_model is not None:
             self.run_get_model(self.config, get_model)
+        else:
+            raise ValueError("[!] `model` and `get_model` cannot both be None.")
 
         # init model's training assets
         if isimplemented(self.model, "init_for_training"):
@@ -310,9 +314,9 @@ class Trainer:
             self.model.cuda()
             if isinstance(self.criterion, list):
                 for criterion in self.criterion:
-                    if isinstance(criterion, torch.nn.Module):
+                    if isinstance(criterion, nn.Module):
                         criterion.cuda()
-            elif isinstance(self.criterion, torch.nn.Module):
+            elif isinstance(self.criterion, nn.Module):
                 self.criterion.cuda()
 
         # setup optimizer
@@ -396,14 +400,22 @@ class Trainer:
                 precision=self.config.precision,
             )
 
-    def prepare_accelerate_loader(self, data_loader):
+    def prepare_accelerate_loader(self, data_loader: DataLoader) -> DataLoader:
         """Prepare the accelerator for the training."""
         if self.use_accelerate:
             return self.accelerator.prepare_data_loader(data_loader)
         return data_loader
 
     @staticmethod
-    def init_accelerate(model, optimizer, training_dataloader, scheduler, grad_accum_steps, mixed_precision, precision):
+    def init_accelerate(
+        model: TrainerModel,
+        optimizer: torch.optim.Optimizer,
+        training_dataloader: DataLoader,
+        scheduler,
+        grad_accum_steps,
+        mixed_precision: bool,
+        precision,
+    ) -> tuple:
         """Setup HF Accelerate for the training."""
 
         # check if accelerate is installed
@@ -420,7 +432,7 @@ class Trainer:
         elif _precision == "bfloat16":
             _precision = "bf16"
         accelerator = Accelerator(gradient_accumulation_steps=grad_accum_steps, mixed_precision=_precision)
-        if isinstance(model, torch.nn.Module):
+        if isinstance(model, nn.Module):
             model = accelerator.prepare_model(model)
 
         if isinstance(optimizer, dict):
@@ -457,7 +469,12 @@ class Trainer:
             shutil.copyfile(file_path, os.path.join(self.output_path, file_name))
 
     @staticmethod
-    def init_loggers(config: "Coqpit", output_path: str, dashboard_logger=None, c_logger=None):
+    def init_loggers(
+        config: TrainerConfig,
+        output_path: str,
+        dashboard_logger: Optional[BaseDashboardLogger] = None,
+        c_logger: Optional[ConsoleLogger] = None,
+    ) -> tuple[BaseDashboardLogger, ConsoleLogger]:
         """Init console and dashboard loggers.
 
         Use the given logger if passed externally else use config values to pick the right logger.
@@ -465,7 +482,7 @@ class Trainer:
         Define a console logger for each process in DDP
 
         Args:
-            config (Coqpit): Model config.
+            config (TrainerConfig): Model config.
             output_path (str): Output path to save the training artifacts.
             dashboard_logger (DashboardLogger): Object passed to the trainer from outside.
             c_logger (ConsoleLogger): Object passed to the trained from outside.
@@ -492,30 +509,34 @@ class Trainer:
 
     @staticmethod
     def init_training(
-        args: TrainerArgs, coqpit_overrides: dict, config: Coqpit = None
-    ) -> tuple[Coqpit, dict[str, str]]:
+        args: TrainerArgs, coqpit_overrides: list[str], config: Optional[TrainerConfig] = None
+    ) -> tuple[TrainerConfig, dict[str, str]]:
         """Initialize training and update model configs from command line arguments.
 
         Args:
-            args (argparse.Namespace or dict like): Parsed trainer arguments.
-            config_overrides (argparse.Namespace or dict like): Parsed config overriding arguments.
-            config (Coqpit): Model config. If none, it is generated from `args`. Defaults to None.
+            args: Parsed trainer arguments.
+            config_overrides: Parsed config overriding arguments.
+            config: Model config. If none, it is generated from `args`. Defaults to None.
 
         Returns:
-            config (Coqpit): Config paramaters.
+            config (TrainerConfig): Config paramaters.
         """
         # set arguments for continuing training
         if args.continue_path:
-            args.config_path = os.path.join(args.continue_path, "config.json")
+            config_path = os.path.join(args.continue_path, "config.json")
             args.restore_path, best_model = get_last_checkpoint(args.continue_path)
             if not args.best_path:
                 args.best_path = best_model
             # use the same config
             if config:
-                config.load_json(args.config_path)
+                config.load_json(config_path)
             else:
-                coqpit = Coqpit()
-                coqpit.load_json(args.config_path)
+                config = TrainerConfig()
+                config.load_json(config_path)
+
+        if config is None:
+            msg = "Config or continue_path containing Config not provided"
+            raise ValueError(msg)
 
         # override config values from command-line args
         # TODO: Maybe it is better to do it outside
@@ -531,7 +552,7 @@ class Trainer:
         return config, new_fields
 
     @staticmethod
-    def setup_training_environment(args, config, gpu) -> tuple[bool, int]:
+    def setup_training_environment(args: TrainerArgs, config: TrainerConfig, gpu: Optional[int]) -> tuple[bool, int]:
         if platform.system() != "Windows":
             # https://github.com/pytorch/pytorch/issues/973
             import resource  # pylint: disable=import-outside-toplevel
@@ -555,25 +576,27 @@ class Trainer:
         return use_cuda, num_gpus
 
     @staticmethod
-    def run_get_model(config: Coqpit, get_model: Callable) -> nn.Module:
+    def run_get_model(
+        config: TrainerConfig, get_model: Union[Callable[[TrainerConfig], TrainerModel], Callable[[], TrainerModel]]
+    ) -> TrainerModel:
         """Run the `get_model` function and return the model.
 
         Args:
-            config (Coqpit): Model config.
+            config (TrainerConfig): Model config.
 
         Returns:
-            nn.Module: initialized model.
+            TrainerModel: initialized model.
         """
-        if len(signature(get_model).sig.parameters) == 1:
+        if len(signature(get_model).parameters) == 1:
             model = get_model(config)
         else:
             model = get_model()
         return model
 
     @staticmethod
-    def run_get_data_samples(config: Coqpit, get_data_samples: Callable) -> nn.Module:
+    def run_get_data_samples(config: TrainerConfig, get_data_samples: Callable) -> tuple[Iterable, Iterable]:
         if callable(get_data_samples):
-            if len(signature(get_data_samples).sig.parameters) == 1:
+            if len(signature(get_data_samples).parameters) == 1:
                 train_samples, eval_samples = get_data_samples(config)
             else:
                 train_samples, eval_samples = get_data_samples()
@@ -582,23 +605,23 @@ class Trainer:
 
     def restore_model(
         self,
-        config: Coqpit,
+        config: TrainerConfig,
         restore_path: Union[str, os.PathLike[Any]],
-        model: nn.Module,
+        model: TrainerModel,
         optimizer: torch.optim.Optimizer,
         scaler: Optional["torch.GradScaler"] = None,
-    ) -> tuple[nn.Module, torch.optim.Optimizer, "torch.GradScaler", int]:
+    ) -> tuple[TrainerModel, torch.optim.Optimizer, "torch.GradScaler", int, int]:
         """Restore training from an old run. It restores model, optimizer, AMP scaler and training stats.
 
         Args:
-            config (Coqpit): Model config.
+            config (TrainerConfig): Model config.
             restore_path (str): Path to the restored training run.
-            model (nn.Module): Model to restored.
+            model (TrainerModel): Model to restored.
             optimizer (torch.optim.Optimizer): Optimizer to restore.
             scaler (torch.GradScaler, optional): AMP scaler to restore. Defaults to None.
 
         Returns:
-            Tuple[nn.Module, torch.optim.Optimizer, torch.GradScaler, int]: [description]
+            Tuple[TrainerModel, torch.optim.Optimizer, torch.GradScaler, int, int]: [description]
         """
 
         def _restore_list_objs(states, obj):
@@ -641,7 +664,9 @@ class Trainer:
         torch.cuda.empty_cache()
         return model, optimizer, scaler, restore_step, restore_epoch
 
-    def restore_lr(self, config, args, model, optimizer):
+    def restore_lr(
+        self, config: TrainerConfig, args: TrainerArgs, model: TrainerModel, optimizer: torch.optim.Optimizer
+    ) -> torch.optim.Optimizer:
         # use the same lr if continue training
         if not args.continue_path:
             if isinstance(optimizer, list):
@@ -663,8 +688,8 @@ class Trainer:
 
     def _get_loader(
         self,
-        model: nn.Module,
-        config: Coqpit,
+        model: TrainerModel,
+        config: TrainerConfig,
         assets: dict,
         is_eval: bool,
         samples: list,
@@ -803,7 +828,7 @@ class Trainer:
             self.num_gpus,
         )
 
-    def format_batch(self, batch: list) -> dict:
+    def format_batch(self, batch: Union[dict[str, Any], list]) -> dict:
         """Format the dataloader output and return a batch.
 
         1. Call ```model.format_batch```.
@@ -844,7 +869,7 @@ class Trainer:
     ######################
 
     @staticmethod
-    def master_params(optimizer: torch.optim.Optimizer):
+    def master_params(optimizer: torch.optim.Optimizer) -> Generator:
         """Generator over parameters owned by the optimizer.
 
         Used to select parameters used by the optimizer for gradient clipping.
@@ -857,13 +882,13 @@ class Trainer:
 
     @staticmethod
     def _model_train_step(
-        batch: dict, model: nn.Module, criterion: nn.Module, optimizer_idx: Optional[int] = None
+        batch: dict, model: TrainerModel, criterion: nn.Module, optimizer_idx: Optional[int] = None
     ) -> tuple[dict, dict]:
         """Perform a trainig forward step. Compute model outputs and losses.
 
         Args:
             batch (Dict): [description]
-            model (nn.Module): [description]
+            model (TrainerModel): [description]
             criterion (nn.Module): [description]
             optimizer_idx (int, optional): [description]. Defaults to None.
 
@@ -878,7 +903,7 @@ class Trainer:
             return model.module.train_step(*input_args)
         return model.train_step(*input_args)
 
-    def _get_autocast_args(self, mixed_precision: bool, precision: str):
+    def _get_autocast_args(self, mixed_precision: bool, precision: str) -> tuple[str, torch.dtype]:
         device = "cpu"
         if is_pytorch_at_least_2_4():
             dtype = torch.get_autocast_dtype("cpu")
@@ -918,7 +943,14 @@ class Trainer:
                 loss_dict_detached["grad_norm"] = grad_norm
         return loss_dict_detached
 
-    def _compute_loss(self, batch: dict, model: nn.Module, criterion: nn.Module, config: Coqpit, optimizer_idx: int):
+    def _compute_loss(
+        self,
+        batch: dict,
+        model: TrainerModel,
+        criterion: nn.Module,
+        config: TrainerConfig,
+        optimizer_idx: Optional[int],
+    ) -> tuple[dict, dict]:
         device, dtype = self._get_autocast_args(config.mixed_precision, config.precision)
         with torch.autocast(device_type=device, dtype=dtype, enabled=config.mixed_precision):
             if optimizer_idx is not None:
@@ -928,7 +960,7 @@ class Trainer:
         return outputs, loss_dict
 
     @staticmethod
-    def _set_grad_clip_per_optimizer(config: Coqpit, optimizer_idx: int):
+    def _set_grad_clip_per_optimizer(config: TrainerConfig, optimizer_idx: Optional[int]) -> float:
         # set gradient clipping threshold
         grad_clip = 0.0  # meaning no gradient clipping
         if "grad_clip" in config and config.grad_clip is not None:
@@ -958,26 +990,26 @@ class Trainer:
     def optimize(
         self,
         batch: dict,
-        model: nn.Module,
+        model: TrainerModel,
         optimizer: torch.optim.Optimizer,
         scaler: "torch.GradScaler",
         criterion: nn.Module,
         scheduler: Union[torch.optim.lr_scheduler._LRScheduler, list, dict],  # pylint: disable=protected-access
-        config: Coqpit,
+        config: TrainerConfig,
         optimizer_idx: Optional[int] = None,
         step_optimizer: bool = True,
         num_optimizers: int = 1,
-    ) -> tuple[dict, dict, int]:
+    ) -> tuple[dict, dict, float]:
         """Perform a forward - backward pass and run the optimizer.
 
         Args:
             batch (Dict): Input batch. If
-            model (nn.Module): Model for training. Defaults to None.
+            model (TrainerModel): Model for training. Defaults to None.
             optimizer (Union[nn.optim.Optimizer, List]): Model's optimizer. If it is a list then, `optimizer_idx` must be defined to indicate the optimizer in use.
             scaler (AMPScaler): AMP scaler.
             criterion (nn.Module): Model's criterion.
             scheduler (torch.optim.lr_scheduler._LRScheduler): LR scheduler used by the optimizer.
-            config (Coqpit): Model config.
+            config (TrainerConfig): Model config.
             optimizer_idx (int, optional): Target optimizer being used. Defaults to None.
             step_optimizer (bool, optional): Whether step the optimizer. If False, gradients are accumulated and
                 model parameters are not updated. Defaults to True.
@@ -1141,7 +1173,7 @@ class Trainer:
             else:
                 # auto training with multiple optimizers (e.g. GAN)
                 outputs_per_optimizer = [None] * len(self.optimizer)
-                total_step_time = 0
+                total_step_time = 0.0
                 for idx, optimizer in enumerate(self.optimizer):
                     criterion = self.criterion
                     # scaler = self.scaler[idx] if self.use_amp_scaler else None
@@ -1315,13 +1347,13 @@ class Trainer:
     #######################
 
     def _model_eval_step(
-        self, batch: dict, model: nn.Module, criterion: nn.Module, optimizer_idx: Optional[int] = None
+        self, batch: dict, model: TrainerModel, criterion: nn.Module, optimizer_idx: Optional[int] = None
     ) -> tuple[dict, dict]:
         """Perform a evaluation forward pass. Compute model outputs and losses with no gradients.
 
         Args:
             batch (Dict): IBatch of inputs.
-            model (nn.Module): Model to call evaluation.
+            model (TrainerModel): Model to call evaluation.
             criterion (nn.Module): Model criterion.
             optimizer_idx (int, optional): Optimizer ID to define the closure in multi-optimizer training. Defaults to None.
 
@@ -1342,7 +1374,7 @@ class Trainer:
 
         return model.eval_step(*input_args)
 
-    def eval_step(self, batch: dict, step: int) -> tuple[dict, dict]:
+    def eval_step(self, batch: dict, step: int) -> tuple[Optional[dict], Optional[dict]]:
         """Perform a evaluation step on a batch of inputs and log the process.
 
         Args:
@@ -1354,7 +1386,7 @@ class Trainer:
         """
         with torch.no_grad():
             outputs = []
-            loss_dict = {}
+            loss_dict: dict[str, Any] = {}
             if not isinstance(self.optimizer, list) or isimplemented(self.model, "optimize"):
                 outputs, loss_dict = self._model_eval_step(batch, self.model, self.criterion)
                 if outputs is None:
@@ -1505,14 +1537,14 @@ class Trainer:
                         self.best_loss = {"train_loss": ch["model_loss"], "eval_loss": None}
             logger.info(" > Starting with loaded last best loss %s", self.best_loss)
 
-    def test(self, model=None, test_samples=None) -> None:
+    def test(self, model: Optional[TrainerModel] = None, test_samples: Optional[list[str]] = None) -> None:
         """Run evaluation steps on the test data split.
 
         You can either provide the model and the test samples
         explicitly or the trainer uses values from the initialization.
 
         Args:
-            model (nn.Module, optional): Model to use for testing. If None, use the model given in the initialization.
+            model (TrainerModel, optional): Model to use for testing. If None, use the model given in the initialization.
                 Defaults to None.
 
             test_samples (List[str], optional): List of test samples to use for testing. If None, use the test samples
@@ -1751,13 +1783,13 @@ class Trainer:
     #####################
 
     @staticmethod
-    def get_optimizer(model: nn.Module, config: Coqpit) -> Union[torch.optim.Optimizer, list]:
+    def get_optimizer(model: TrainerModel, config: TrainerConfig) -> Union[torch.optim.Optimizer, list]:
         """Receive the optimizer from the model if model implements `get_optimizer()` else
         check the optimizer parameters in the config and try initiating the optimizer.
 
         Args:
-            model (nn.Module): Training model.
-            config (Coqpit): Training configuration.
+            model (TrainerModel): Training model.
+            config (TrainerConfig): Training configuration.
 
         Returns:
             Union[torch.optim.Optimizer, List]: A optimizer or a list of optimizers. GAN models define a list.
@@ -1775,13 +1807,13 @@ class Trainer:
         return optimizer
 
     @staticmethod
-    def get_lr(model: nn.Module, config: Coqpit) -> Union[float, list[float]]:
+    def get_lr(model: TrainerModel, config: TrainerConfig) -> Union[float, list[float]]:
         """Set the initial learning rate by the model if model implements `get_lr()` else try setting the learning rate
         fromthe config.
 
         Args:
-            model (nn.Module): Training model.
-            config (Coqpit): Training configuration.
+            model (TrainerModel): Training model.
+            config (TrainerConfig): Training configuration.
 
         Returns:
             Union[float, List[float]]: A single learning rate or a list of learning rates, one for each optimzier.
@@ -1798,14 +1830,14 @@ class Trainer:
 
     @staticmethod
     def get_scheduler(
-        model: nn.Module, config: Coqpit, optimizer: Union[torch.optim.Optimizer, list, dict]
+        model: TrainerModel, config: TrainerConfig, optimizer: Union[torch.optim.Optimizer, list, dict]
     ) -> Union[torch.optim.lr_scheduler._LRScheduler, list]:  # pylint: disable=protected-access
         """Receive the scheduler from the model if model implements `get_scheduler()` else
         check the config and try initiating the scheduler.
 
         Args:
-            model (nn.Module): Training model.
-            config (Coqpit): Training configuration.
+            model (TrainerModel): Training model.
+            config (TrainerConfig): Training configuration.
 
         Returns:
             Union[torch.optim.Optimizer, List, Dict]: A scheduler or a list of schedulers, one for each optimizer.
@@ -1829,8 +1861,8 @@ class Trainer:
     @staticmethod
     def restore_scheduler(
         scheduler: Union[torch.optim.lr_scheduler._LRScheduler, list, dict],
-        args: Coqpit,
-        config: Coqpit,
+        args: TrainerArgs,
+        config: TrainerConfig,
         restore_epoch: int,
         restore_step: int,
     ) -> Union[torch.optim.lr_scheduler._LRScheduler, list]:
@@ -1857,11 +1889,11 @@ class Trainer:
         return scheduler
 
     @staticmethod
-    def get_criterion(model: nn.Module) -> nn.Module:
+    def get_criterion(model: TrainerModel) -> nn.Module:
         """Receive the criterion from the model. Model must implement `get_criterion()`.
 
         Args:
-            model (nn.Module): Training model.
+            model (TrainerModel): Training model.
 
         Returns:
             nn.Module: Criterion layer.
@@ -1890,7 +1922,7 @@ class Trainer:
                 loss_dict_detached[key] = value.detach().cpu().item()
         return loss_dict_detached
 
-    def _pick_target_avg_loss(self, keep_avg_target: KeepAverage) -> dict:
+    def _pick_target_avg_loss(self, keep_avg_target: Optional[KeepAverage]) -> Optional[dict]:
         """Pick the target loss to compare models"""
 
         # if the keep_avg_target is None or empty return None

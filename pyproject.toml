@@ -7,7 +7,7 @@ include = ["trainer*"]
 
 [project]
 name = "coqui-tts-trainer"
-version = "0.1.7"
+version = "0.2.0"
 description = "General purpose model trainer for PyTorch that is more flexible than it should be, by 🐸Coqui."
 readme = "README.md"
 requires-python = ">=3.9, <3.13"
@@ -21,9 +21,7 @@ maintainers = [
 classifiers = [
     "Environment :: Console",
     "Natural Language :: English",
-    # How mature is this project? Common values are
-    #   3 - Alpha, 4 - Beta, 5 - Production/Stable
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: Apache Software License",
@@ -39,7 +37,7 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
-    "coqpit>=0.0.17",
+    "coqpit-config>=0.1.1",
     "fsspec>=2023.6.0",
     "numpy>=1.24.3; python_version < '3.12'",
     "numpy>=1.26.0; python_version >= '3.12'",
@@ -58,10 +56,16 @@ dev = [
     "pytest>=8",
     "ruff==0.6.9",
 ]
-# Dependencies for running the tests
 test = [
     "accelerate>=0.20.0",
     "torchvision>=0.15.1",
+]
+mypy = [
+    "matplotlib>=3.9.2",
+    "mlflow>=2.18.0",
+    "mypy>=1.13.0",
+    "types-psutil>=6.1.0.20241102",
+    "wandb>=0.18.7",
 ]
 
 [tool.uv]
@@ -105,3 +109,16 @@ skip_empty = true
 [tool.coverage.run]
 source = ["trainer", "tests"]
 command_line = "-m pytest"
+
+[[tool.mypy.overrides]]
+module = [
+    "accelerate",
+    "aim",
+    "aim.sdk.run",
+    "apex",
+    "clearml",
+    "fsspec",
+    "plotly",
+    "soundfile",
+]
+ignore_missing_imports = true

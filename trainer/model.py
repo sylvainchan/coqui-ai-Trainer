@@ -1,14 +1,16 @@
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 import torch
 from torch import nn
 
-from trainer.trainer import Trainer
 from trainer.trainer_utils import is_apex_available
 
 if is_apex_available():
     from apex import amp
+
+if TYPE_CHECKING:
+    from trainer.trainer import Trainer
 
 
 # pylint: skip-file
@@ -108,7 +110,7 @@ class TrainerModel(ABC, nn.Module):
         """Get data loader for the model.
 
         Args:
-            config (Coqpit): Configuration object.
+            config (TrainerConfig): Configuration object.
             assets (Dict): Additional assets to be used for data loading.
             is_eval (bool): If True, returns evaluation data loader.
             samples (Union[List[Dict], List[List]]): List of samples to be used for data loading.
@@ -145,7 +147,12 @@ class TrainerModel(ABC, nn.Module):
         raise NotImplementedError(" [!] `optimize()` is not implemented.")
 
     def scaled_backward(
-        self, loss: torch.Tensor, trainer: Trainer, optimizer: torch.optim.Optimizer, *args: Any, **kwargs: Any
+        self,
+        loss: torch.Tensor,
+        trainer: "Trainer",
+        optimizer: torch.optim.Optimizer,
+        *args: Any,
+        **kwargs: Any,
     ) -> tuple[float, bool]:
         """Backward pass with gradient scaling for custom `optimize` calls.
 

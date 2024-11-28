@@ -1,12 +1,14 @@
 import datetime
 import os
 import subprocess
+from collections.abc import ItemsView
 from typing import Any, Union
 
 import fsspec
 import torch
 from packaging.version import Version
 
+from trainer.config import TrainerConfig
 from trainer.logger import logger
 
 
@@ -20,7 +22,7 @@ def is_pytorch_at_least_2_4() -> bool:
     return Version(torch.__version__) >= Version("2.4")
 
 
-def isimplemented(obj, method_name) -> bool:
+def isimplemented(obj: Any, method_name: str) -> bool:
     """Check if a method is implemented in a class."""
     if method_name in dir(obj) and callable(getattr(obj, method_name)):
         try:
@@ -43,7 +45,7 @@ def to_cuda(x: torch.Tensor) -> torch.Tensor:
     return x
 
 
-def get_cuda():
+def get_cuda() -> tuple[bool, torch.device]:
     use_cuda = torch.cuda.is_available()
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     return use_cuda, device
@@ -97,7 +99,7 @@ def count_parameters(model: torch.nn.Module) -> int:
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
-def set_partial_state_dict(model_dict, checkpoint_state, c):
+def set_partial_state_dict(model_dict: dict, checkpoint_state: dict, c: TrainerConfig) -> dict:
     # Partial initialization: if there is a mismatch with new and old layer, it is skipped.
     for k in checkpoint_state:
         if k not in model_dict:
@@ -123,21 +125,21 @@ def set_partial_state_dict(model_dict, checkpoint_state, c):
 
 
 class KeepAverage:
-    def __init__(self):
-        self.avg_values = {}
-        self.iters = {}
+    def __init__(self) -> None:
+        self.avg_values: dict[str, float] = {}
+        self.iters: dict[str, int] = {}
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: str) -> Any:
         return self.avg_values[key]
 
-    def items(self):
+    def items(self) -> ItemsView[str, Any]:
         return self.avg_values.items()
 
-    def add_value(self, name, init_val=0, init_iter=0):
+    def add_value(self, name: str, init_val: float = 0, init_iter: int = 0) -> None:
         self.avg_values[name] = init_val
         self.iters[name] = init_iter
 
-    def update_value(self, name, value, weighted_avg=False):
+    def update_value(self, name: str, value: float, weighted_avg: bool = False) -> None:
         if name not in self.avg_values:
             # add value if not exist before
             self.add_value(name, init_val=value)
@@ -151,10 +153,10 @@ class KeepAverage:
                 self.iters[name] += 1
                 self.avg_values[name] /= self.iters[name]
 
-    def add_values(self, name_dict):
+    def add_values(self, name_dict: dict[str, float]) -> None:
         for key, value in name_dict.items():
             self.add_value(key, init_val=value)
 
-    def update_values(self, value_dict):
+    def update_values(self, value_dict: dict[str, float]) -> None:
         for key, value in value_dict.items():
             self.update_value(key, value)
