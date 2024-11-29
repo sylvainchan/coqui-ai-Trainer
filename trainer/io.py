@@ -62,6 +62,7 @@ def copy_model_files(config: Coqpit, out_path: Union[str, os.PathLike[Any]], new
 def load_fsspec(
     path: Union[str, os.PathLike[Any]],
     map_location: Optional[Union[str, Callable[[Storage, str], Storage], torch.device, dict[str, str]]] = None,
+    *,
     cache: bool = True,
     **kwargs,
 ) -> Any:
@@ -92,6 +93,7 @@ def load_fsspec(
 def load_checkpoint(
     model: torch.nn.Module,
     checkpoint_path: Union[str, os.PathLike[Any]],
+    *,
     use_cuda: bool = False,
     eval: bool = False,
     cache: bool = False,
@@ -201,6 +203,7 @@ def save_best_model(
     current_step: int,
     epoch: int,
     out_path: Union[str, os.PathLike[Any]],
+    *,
     keep_all_best: bool = False,
     keep_after: int = 0,
     save_func: Optional[Callable] = None,
@@ -330,7 +333,7 @@ def keep_n_checkpoints(path: Union[str, os.PathLike[Any]], n: int) -> None:
 
 
 def sort_checkpoints(
-    output_path: Union[str, os.PathLike[Any]], checkpoint_prefix: str, use_mtime: bool = False
+    output_path: Union[str, os.PathLike[Any]], checkpoint_prefix: str, *, use_mtime: bool = False
 ) -> list[str]:
     """Sort checkpoint paths based on the checkpoint step number.
 

@@ -35,6 +35,7 @@ class DistributedSamplerWrapper(DistributedSampler):
     def __init__(
         self,
         sampler,
+        *,
         num_replicas: Optional[int] = None,
         rank: Optional[int] = None,
         shuffle: bool = True,

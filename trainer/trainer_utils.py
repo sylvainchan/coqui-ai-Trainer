@@ -66,6 +66,7 @@ def print_training_env(args: TrainerArgs, config: TrainerConfig) -> None:
 
 def setup_torch_training_env(
     args: TrainerArgs,
+    *,
     cudnn_enable: bool,
     cudnn_benchmark: bool,
     cudnn_deterministic: bool,

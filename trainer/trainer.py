@@ -411,9 +411,10 @@ class Trainer:
         optimizer: torch.optim.Optimizer,
         training_dataloader: DataLoader,
         scheduler,
-        grad_accum_steps,
+        *,
+        grad_accum_steps: int,
         mixed_precision: bool,
-        precision,
+        precision: str,
     ) -> tuple:
         """Setup HF Accelerate for the training."""
         # check if accelerate is installed
@@ -686,8 +687,9 @@ class Trainer:
         model: TrainerModel,
         config: TrainerConfig,
         assets: dict,
-        is_eval: bool,
         samples: list,
+        *,
+        is_eval: bool,
         verbose: bool,
         num_gpus: int,
     ) -> DataLoader:
@@ -712,7 +714,7 @@ class Trainer:
         ), " ❗ len(DataLoader) returns 0. Make sure your dataset is not empty or len(dataset) > 0. "
         return loader
 
-    def get_train_dataloader(self, training_assets: dict, samples: list, verbose: bool) -> DataLoader:
+    def get_train_dataloader(self, training_assets: dict, samples: list, *, verbose: bool) -> DataLoader:
         """Initialize and return a training data loader.
 
         Call ```model.get_train_data_loader``` if it is implemented, else call ```model.get_data_loader```
@@ -743,13 +745,13 @@ class Trainer:
             self.model,
             self.config,
             training_assets,
-            False,
             samples,
-            verbose,
-            self.num_gpus,
+            is_eval=False,
+            verbose=verbose,
+            num_gpus=self.num_gpus,
         )
 
-    def get_eval_dataloader(self, training_assets: dict, samples: list, verbose: bool) -> DataLoader:
+    def get_eval_dataloader(self, training_assets: dict, samples: list, *, verbose: bool) -> DataLoader:
         """Initialize and return a evaluation data loader.
 
         Call ```model.get_eval_data_loader``` if it is implemented, else call ```model.get_data_loader```
@@ -780,13 +782,13 @@ class Trainer:
             self.model,
             self.config,
             training_assets,
-            True,
             samples,
-            verbose,
-            self.num_gpus,
+            is_eval=True,
+            verbose=verbose,
+            num_gpus=self.num_gpus,
         )
 
-    def get_test_dataloader(self, training_assets: dict, samples: list, verbose: bool) -> DataLoader:
+    def get_test_dataloader(self, training_assets: dict, samples: list, *, verbose: bool) -> DataLoader:
         """Initialize and return a evaluation data loader.
 
         Call ```model.get_test_data_loader``` if it is implemented, else call ```model.get_data_loader```
@@ -817,10 +819,10 @@ class Trainer:
             self.model,
             self.config,
             training_assets,
-            True,
             samples,
-            verbose,
-            self.num_gpus,
+            is_eval=True,
+            verbose=verbose,
+            num_gpus=self.num_gpus,
         )
 
     def format_batch(self, batch: Union[dict[str, Any], list]) -> dict:
@@ -893,7 +895,7 @@ class Trainer:
             return model.module.train_step(*input_args)
         return model.train_step(*input_args)
 
-    def _get_autocast_args(self, mixed_precision: bool, precision: str) -> tuple[str, torch.dtype]:
+    def _get_autocast_args(self, *, mixed_precision: bool, precision: str) -> tuple[str, torch.dtype]:
         device = "cpu"
         dtype = torch.get_autocast_dtype("cpu") if is_pytorch_at_least_2_4() else torch.get_autocast_cpu_dtype()
         if self.use_cuda:
@@ -914,6 +916,7 @@ class Trainer:
     def detach_loss_dict(
         self,
         loss_dict: dict,
+        *,
         step_optimizer: bool,
         optimizer_idx: Optional[int] = None,
         grad_norm: Optional[float] = None,
@@ -938,7 +941,7 @@ class Trainer:
         config: TrainerConfig,
         optimizer_idx: Optional[int],
     ) -> tuple[dict, dict]:
-        device, dtype = self._get_autocast_args(config.mixed_precision, config.precision)
+        device, dtype = self._get_autocast_args(mixed_precision=config.mixed_precision, precision=config.precision)
         with torch.autocast(device_type=device, dtype=dtype, enabled=config.mixed_precision):
             if optimizer_idx is not None:
                 outputs, loss_dict = self._model_train_step(batch, model, criterion, optimizer_idx=optimizer_idx)
@@ -983,6 +986,7 @@ class Trainer:
         criterion: nn.Module,
         scheduler: Union[torch.optim.lr_scheduler._LRScheduler, list, dict],  # pylint: disable=protected-access
         config: TrainerConfig,
+        *,
         optimizer_idx: Optional[int] = None,
         step_optimizer: bool = True,
         num_optimizers: int = 1,
@@ -1095,7 +1099,9 @@ class Trainer:
         step_time = time.time() - step_start_time
 
         # detach loss dict
-        loss_dict_detached = self.detach_loss_dict(loss_dict, step_optimizer, optimizer_idx, grad_norm)
+        loss_dict_detached = self.detach_loss_dict(
+            loss_dict, step_optimizer=step_optimizer, optimizer_idx=optimizer_idx, grad_norm=grad_norm
+        )
         return outputs, loss_dict_detached, step_time
 
     def train_step(self, batch: dict, batch_n_steps: int, step: int, loader_start_time: float) -> tuple[dict, dict]:
@@ -1123,7 +1129,9 @@ class Trainer:
         if isimplemented(self.model, "optimize"):  # pylint: disable=too-many-nested-blocks
             # custom optimize for the model
             step_time = time.time()
-            device, dtype = self._get_autocast_args(self.config.mixed_precision, self.config.precision)
+            device, dtype = self._get_autocast_args(
+                mixed_precision=self.config.mixed_precision, precision=self.config.precision
+            )
             with torch.autocast(device_type=device, dtype=dtype, enabled=self.config.mixed_precision):
                 outputs, loss_dict_new = self.model.optimize(
                     batch,
@@ -1134,7 +1142,7 @@ class Trainer:
             if outputs is None:
                 return None, None
             # TODO: find a way to log grad_norm for custom optimize
-            loss_dict_new = self.detach_loss_dict(loss_dict_new, True, None, None)
+            loss_dict_new = self.detach_loss_dict(loss_dict_new, step_optimizer=True)
             loss_dict.update(loss_dict_new)
         else:
             # gradient accumulation
@@ -1176,7 +1184,7 @@ class Trainer:
                         criterion,
                         scheduler,
                         self.config,
-                        idx,
+                        optimizer_idx=idx,
                         step_optimizer=step_optimizer,
                         num_optimizers=len(self.optimizer),
                     )

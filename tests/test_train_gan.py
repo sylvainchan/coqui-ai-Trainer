@@ -21,7 +21,7 @@ class Generator(nn.Module):
         super().__init__()
         self.img_shape = img_shape
 
-        def block(in_feat, out_feat, normalize=True):
+        def block(in_feat, out_feat, *, normalize=True):
             layers = [nn.Linear(in_feat, out_feat)]
             if normalize:
                 layers.append(nn.BatchNorm1d(out_feat, 0.8))

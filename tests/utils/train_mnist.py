@@ -17,8 +17,8 @@ def main():
         train_args,
         config,
         model=model,
-        train_samples=model.get_data_loader(config, None, False, None, None, None),
-        eval_samples=model.get_data_loader(config, None, True, None, None, None),
+        train_samples=model.get_data_loader(config, None, is_eval=False),
+        eval_samples=model.get_data_loader(config, None, is_eval=True),
         parse_command_line_args=True,
     )
     trainer.fit()

@@ -143,7 +143,7 @@ class KeepAverage:
         self.avg_values[name] = init_val
         self.iters[name] = init_iter
 
-    def update_value(self, name: str, value: float, weighted_avg: bool = False) -> None:
+    def update_value(self, name: str, value: float, *, weighted_avg: bool = False) -> None:
         if name not in self.avg_values:
             # add value if not exist before
             self.add_value(name, init_val=value)
