@@ -76,7 +76,7 @@ def load_fsspec(
     Returns:
         Object stored in path.
     """
-    is_local = os.path.isdir(path) or os.path.isfile(path)
+    is_local = Path(path).exists()
     if cache and not is_local:
         with fsspec.open(
             f"filecache::{path}",

@@ -11,6 +11,7 @@ import traceback
 from collections.abc import Generator, Iterable
 from contextlib import nullcontext, suppress
 from inspect import signature
+from pathlib import Path
 from typing import Any, Callable, Optional, Union
 
 import torch
@@ -201,7 +202,7 @@ class Trainer:
             output_path = config.output_path if output_path is None else str(output_path)
             # create a new output folder name
             output_path = get_experiment_folder_path(output_path, config.run_name)
-            os.makedirs(output_path, exist_ok=True)
+            output_path.mkdir(exist_ok=True, parents=True)
 
         # copy training assets to the output folder
         copy_model_files(config, output_path, new_fields)
@@ -209,7 +210,7 @@ class Trainer:
         # init class members
         self.args = args
         self.config = config
-        self.output_path = output_path
+        self.output_path = Path(output_path)
         self.training_assets = training_assets
         self.grad_accum_steps = args.grad_accum_steps
         self.overfit_batch = args.overfit_batch
@@ -458,13 +459,13 @@ class Trainer:
 
     def save_training_script(self) -> None:
         """Save the training script to tracking dashboard and output path."""
-        file_path = sys.argv[0]
-        if os.path.isfile(file_path):
-            file_name = os.path.basename(file_path)
+        file_path = Path(sys.argv[0])
+        if file_path.is_file():
+            file_name = file_path.name
             self.dashboard_logger.add_artifact(file_or_dir=file_path, name=file_name, artifact_type="file")
-            with open(file_path, encoding="utf8") as f:
+            with file_path.open(encoding="utf8") as f:
                 self.dashboard_logger.add_text("training-script", f"{f.read()}", 0)
-            shutil.copyfile(file_path, os.path.join(self.output_path, file_name))
+            shutil.copyfile(file_path, self.output_path / file_name)
 
     @staticmethod
     def init_loggers(

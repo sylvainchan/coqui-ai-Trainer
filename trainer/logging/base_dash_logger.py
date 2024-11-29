@@ -1,5 +1,6 @@
+import os
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Any, Union
 
 from trainer.config import TrainerConfig
 from trainer.io import save_fsspec
@@ -39,7 +40,7 @@ class BaseDashboardLogger(ABC):
         pass
 
     @abstractmethod
-    def add_artifact(self, file_or_dir: str, name: str, artifact_type: str, aliases=None):
+    def add_artifact(self, file_or_dir: Union[str, os.PathLike[Any]], name: str, artifact_type: str, aliases=None):
         pass
 
     @abstractmethod

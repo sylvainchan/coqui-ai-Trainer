@@ -1,5 +1,5 @@
-import os
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -126,7 +126,7 @@ def test_overfit_mnist_simple_gan(tmp_path):
 
         def get_data_loader(self, config, assets, is_eval, samples, verbose, num_gpus, rank=0):  # pylint: disable=unused-argument
             transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
-            dataset = MNIST(os.getcwd(), train=not is_eval, download=True, transform=transform)
+            dataset = MNIST(Path.cwd(), train=not is_eval, download=True, transform=transform)
             dataset.data = dataset.data[:64]
             dataset.targets = dataset.targets[:64]
             dataloader = DataLoader(dataset, batch_size=config.batch_size, drop_last=True, shuffle=True)
@@ -218,7 +218,7 @@ def test_overfit_accelerate_mnist_simple_gan(tmp_path):
 
         def get_data_loader(self, config, assets, is_eval, samples, verbose, num_gpus, rank=0):  # pylint: disable=unused-argument
             transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
-            dataset = MNIST(os.getcwd(), train=not is_eval, download=True, transform=transform)
+            dataset = MNIST(Path.cwd(), train=not is_eval, download=True, transform=transform)
             dataset.data = dataset.data[:64]
             dataset.targets = dataset.targets[:64]
             dataloader = DataLoader(dataset, batch_size=config.batch_size, drop_last=True, shuffle=False)
@@ -331,7 +331,7 @@ def test_overfit_manual_optimize_mnist_simple_gan(tmp_path):
 
         def get_data_loader(self, config, assets, is_eval, samples, verbose, num_gpus, rank=0):  # pylint: disable=unused-argument
             transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
-            dataset = MNIST(os.getcwd(), train=not is_eval, download=True, transform=transform)
+            dataset = MNIST(Path.cwd(), train=not is_eval, download=True, transform=transform)
             dataset.data = dataset.data[:64]
             dataset.targets = dataset.targets[:64]
             dataloader = DataLoader(dataset, batch_size=config.batch_size, drop_last=True, shuffle=True)
@@ -445,7 +445,7 @@ def test_overfit_manual_optimize_grad_accum_mnist_simple_gan(tmp_path):
 
         def get_data_loader(self, config, assets, is_eval, samples, verbose, num_gpus, rank=0):  # pylint: disable=unused-argument
             transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
-            dataset = MNIST(os.getcwd(), train=not is_eval, download=True, transform=transform)
+            dataset = MNIST(Path.cwd(), train=not is_eval, download=True, transform=transform)
             dataset.data = dataset.data[:64]
             dataset.targets = dataset.targets[:64]
             dataloader = DataLoader(dataset, batch_size=config.batch_size, drop_last=True, shuffle=True)
@@ -561,7 +561,7 @@ def test_overfit_manual_accelerate_optimize_grad_accum_mnist_simple_gan(tmp_path
 
         def get_data_loader(self, config, assets, is_eval, samples, verbose, num_gpus, rank=0):  # pylint: disable=unused-argument
             transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
-            dataset = MNIST(os.getcwd(), train=not is_eval, download=True, transform=transform)
+            dataset = MNIST(Path.cwd(), train=not is_eval, download=True, transform=transform)
             dataset.data = dataset.data[:64]
             dataset.targets = dataset.targets[:64]
             dataloader = DataLoader(dataset, batch_size=config.batch_size, drop_last=True, shuffle=True)

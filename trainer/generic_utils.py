@@ -2,6 +2,7 @@ import datetime
 import os
 import subprocess
 from collections.abc import ItemsView
+from pathlib import Path
 from typing import Any, Union
 
 import fsspec
@@ -77,12 +78,11 @@ def get_commit_hash() -> str:
     return commit
 
 
-def get_experiment_folder_path(root_path: Union[str, os.PathLike[Any]], model_name: str) -> str:
+def get_experiment_folder_path(root_path: Union[str, os.PathLike[Any]], model_name: str) -> Path:
     """Get an experiment folder path with the current date and time."""
     date_str = datetime.datetime.now().strftime("%B-%d-%Y_%I+%M%p")
     commit_hash = get_commit_hash()
-    output_folder = os.path.join(root_path, model_name + "-" + date_str + "-" + commit_hash)
-    return output_folder
+    return Path(root_path) / f"{model_name}-{date_str}-{commit_hash}"
 
 
 def remove_experiment_folder(experiment_path: Union[str, os.PathLike[Any]]) -> None:

@@ -1,10 +1,10 @@
-"""
-This example shows training of a simple GAN model with MNIST dataset using Gradient Accumulation and Advanced
-Optimization where you call optimizer steps manually.
+"""This example shows training of a simple GAN model on the MNIST dataset.
+
+Using Gradient Accumulation and Advanced Optimization where you call optimizer steps manually.
 """
 
-import os
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -153,7 +153,7 @@ class GANModel(TrainerModel):
 
     def get_data_loader(self, config, assets, is_eval, samples, verbose, num_gpus, rank=0):  # pylint: disable=unused-argument
         transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
-        dataset = MNIST(os.getcwd(), train=not is_eval, download=True, transform=transform)
+        dataset = MNIST(Path.cwd(), train=not is_eval, download=True, transform=transform)
         dataset.data = dataset.data[:64]
         dataset.targets = dataset.targets[:64]
         dataloader = DataLoader(dataset, batch_size=config.batch_size, drop_last=True, shuffle=True)
@@ -166,6 +166,6 @@ if __name__ == "__main__":
     config.grad_clip = None
 
     model = GANModel()
-    trainer = Trainer(TrainerArgs(), config, model=model, gpu=0 if is_cuda else None)
+    trainer = Trainer(TrainerArgs(), config, model=model, output_path=Path.cwd(), gpu=0 if is_cuda else None)
     trainer.config.epochs = 10
     trainer.fit()
