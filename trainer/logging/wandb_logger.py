@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 
 class WandbLogger(BaseDashboardLogger):
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
         if not wandb:
             msg = "install wandb using `pip install wandb` to use WandbLogger"
             raise RuntimeError(msg)

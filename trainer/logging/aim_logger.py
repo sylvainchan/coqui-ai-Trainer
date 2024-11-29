@@ -18,7 +18,7 @@ class AimLogger(BaseDashboardLogger):
         repo: str,
         model_name: str,
         tags: Optional[str] = None,
-    ):
+    ) -> None:
         self._context = None
         self.model_name = model_name
         self.run = Run(repo=repo, experiment=model_name)

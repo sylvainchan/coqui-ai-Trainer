@@ -25,7 +25,7 @@ class MnistModelConfig(TrainerConfig):
 
 
 class MnistModel(TrainerModel):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
 
         # mnist images are (1, 28, 28) (channels, height, width)

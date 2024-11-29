@@ -37,7 +37,7 @@ class ClearMLLogger(TensorboardLogger):
         project_name: str,
         task_name: str,
         tags: Optional[str] = None,
-    ):
+    ) -> None:
         self._context = None
         self.local_path = local_path
         self.task_name = task_name

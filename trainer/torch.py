@@ -78,7 +78,7 @@ class DistributedSamplerWrapper(DistributedSampler):
 
 # pylint: disable=protected-access
 class NoamLR(torch.optim.lr_scheduler._LRScheduler):
-    def __init__(self, optimizer: torch.optim.Optimizer, warmup_steps: float = 0.1, last_epoch: int = -1):
+    def __init__(self, optimizer: torch.optim.Optimizer, warmup_steps: float = 0.1, last_epoch: int = -1) -> None:
         self.warmup_steps = float(warmup_steps)
         super().__init__(optimizer, last_epoch)
 

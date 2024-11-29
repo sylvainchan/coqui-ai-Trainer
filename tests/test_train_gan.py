@@ -17,7 +17,7 @@ is_cuda = torch.cuda.is_available()
 
 
 class Generator(nn.Module):
-    def __init__(self, latent_dim, img_shape):
+    def __init__(self, latent_dim, img_shape) -> None:
         super().__init__()
         self.img_shape = img_shape
 
@@ -43,7 +43,7 @@ class Generator(nn.Module):
 
 
 class Discriminator(nn.Module):
-    def __init__(self, img_shape):
+    def __init__(self, img_shape) -> None:
         super().__init__()
 
         self.model = nn.Sequential(
@@ -68,7 +68,7 @@ def test_overfit_mnist_simple_gan(tmp_path):
         training_seed: int = 666
 
     class GANModel(TrainerModel):
-        def __init__(self):
+        def __init__(self) -> None:
             super().__init__()
             data_shape = (1, 28, 28)
             self.generator = Generator(latent_dim=100, img_shape=data_shape)
@@ -159,7 +159,7 @@ def test_overfit_accelerate_mnist_simple_gan(tmp_path):
         training_seed: int = 666
 
     class GANModel(TrainerModel):
-        def __init__(self):
+        def __init__(self) -> None:
             super().__init__()
             data_shape = (1, 28, 28)
             self.generator = Generator(latent_dim=100, img_shape=data_shape)
@@ -252,7 +252,7 @@ def test_overfit_manual_optimize_mnist_simple_gan(tmp_path):
         training_seed: int = 666
 
     class GANModel(TrainerModel):
-        def __init__(self):
+        def __init__(self) -> None:
             super().__init__()
             data_shape = (1, 28, 28)
             self.generator = Generator(latent_dim=100, img_shape=data_shape)
@@ -362,7 +362,7 @@ def test_overfit_manual_optimize_grad_accum_mnist_simple_gan(tmp_path):
         training_seed: int = 666
 
     class GANModel(TrainerModel):
-        def __init__(self):
+        def __init__(self) -> None:
             super().__init__()
             data_shape = (1, 28, 28)
             self.generator = Generator(latent_dim=100, img_shape=data_shape)
@@ -475,7 +475,7 @@ def test_overfit_manual_accelerate_optimize_grad_accum_mnist_simple_gan(tmp_path
         training_seed: int = 666
 
     class GANModel(TrainerModel):
-        def __init__(self):
+        def __init__(self) -> None:
             super().__init__()
             data_shape = (1, 28, 28)
             self.generator = Generator(latent_dim=100, img_shape=data_shape)

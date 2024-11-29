@@ -25,7 +25,7 @@ class MLFlowLogger(BaseDashboardLogger):
         log_uri: str,
         model_name: str,
         tags: Optional[str] = None,
-    ):
+    ) -> None:
         self.model_name = model_name
         self.client = MlflowClient(tracking_uri=os.path.join(log_uri))
 
