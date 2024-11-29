@@ -1,9 +1,28 @@
-[build-system]
-requires = ["setuptools", "setuptools-scm"]
-build-backend = "setuptools.build_meta"
+#
+#                   ,*++++++*,                ,*++++++*,
+#                *++.        .+++          *++.        .++*
+#              *+*     ,++++*   *+*      *+*   ,++++,     *+*
+#             ,+,   .++++++++++* ,++,,,,*+, ,++++++++++.   *+,
+#             *+.  .++++++++++++..++    *+.,++++++++++++.  .+*
+#             .+*   ++++++++++++.*+,    .+*.++++++++++++   *+,
+#              .++   *++++++++* ++,      .++.*++++++++*   ++,
+#               ,+++*.    . .*++,          ,++*.      .*+++*
+#              *+,   .,*++**.                  .**++**.   ,+*
+#             .+*                                          *+,
+#             *+.                   Coqui                  .+*
+#             *+*              +++ Trainer +++             *+*
+#             .+++*.            .          .             *+++.
+#              ,+* *+++*...                       ...*+++* *+,
+#               .++.    .""""+++++++****+++++++"""".     ++.
+#                 ,++.              ****              .++,
+#                   .++*                            *++.
+#                       *+++,                  ,+++*
+#                           .,*++++::::::++++*,.
+#
 
-[tool.setuptools.packages.find]
-include = ["trainer*"]
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [project]
 name = "coqui-tts-trainer"
@@ -75,6 +94,21 @@ default-groups = ["dev", "test"]
 Homepage = "https://github.com/idiap/coqui-ai-Trainer"
 Repository = "https://github.com/idiap/coqui-ai-Trainer"
 Issues = "https://github.com/idiap/coqui-ai-Trainer/issues"
+
+[tool.hatch.build]
+exclude = [
+    "/.github",
+    "/.gitignore",
+    "/.pre-commit-config.yaml",
+    "/CODE_OF_CONDUCT.md",
+    "/CONTRIBUTING.md",
+    "/Makefile",
+    "/tests",
+    "/trainer/TODO.txt",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["trainer"]
 
 [tool.ruff]
 line-length = 120

@@ -1,9 +1,0 @@
-include README.md
-include LICENSE.txt
-recursive-include trainer *.json
-recursive-include trainer *.html
-recursive-include trainer *.png
-recursive-include trainer *.md
-recursive-include trainer *.py
-recursive-include trainer *.pyx
-recursive-include images *.png
