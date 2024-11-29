@@ -1,5 +1,4 @@
 import os
-import shutil
 import tempfile
 import traceback
 from typing import Optional
@@ -91,14 +90,13 @@ class MLFlowLogger(BaseDashboardLogger):
             if value.dtype == "float16":
                 value = value.astype("float32")
             try:
-                tmp_audio_path = tempfile.NamedTemporaryFile(suffix=".wav")
-                sf.write(tmp_audio_path, value, sample_rate)
-                self.client.log_artifact(
-                    self.run_id,
-                    tmp_audio_path,
-                    f"{scope_name}/{key}/{step}.wav",
-                )
-                shutil.rmtree(tmp_audio_path)
+                with tempfile.NamedTemporaryFile(suffix=".wav") as f:
+                    sf.write(f.name, value, sample_rate)
+                    self.client.log_artifact(
+                        self.run_id,
+                        f.name,
+                        f"{scope_name}/{key}/{step}.wav",
+                    )
             except RuntimeError:
                 traceback.print_exc()
 
