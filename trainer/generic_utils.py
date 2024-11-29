@@ -2,6 +2,7 @@ import datetime
 import os
 import subprocess
 from collections.abc import ItemsView
+from pathlib import Path
 from typing import Any, Union
 
 import fsspec
@@ -64,7 +65,11 @@ def get_git_branch() -> str:
 
 
 def get_commit_hash() -> str:
-    """https://stackoverflow.com/questions/14989858/get-the-current-git-hash-in-a-python-script"""
+    """Get current git commit hash.
+
+    Source:
+    https://stackoverflow.com/questions/14989858/get-the-current-git-hash-in-a-python-script
+    """
     try:
         commit = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"]).decode().strip()
     # Not copying .git folder into docker container
@@ -73,16 +78,15 @@ def get_commit_hash() -> str:
     return commit
 
 
-def get_experiment_folder_path(root_path: Union[str, os.PathLike[Any]], model_name: str) -> str:
-    """Get an experiment folder path with the current date and time"""
+def get_experiment_folder_path(root_path: Union[str, os.PathLike[Any]], model_name: str) -> Path:
+    """Get an experiment folder path with the current date and time."""
     date_str = datetime.datetime.now().strftime("%B-%d-%Y_%I+%M%p")
     commit_hash = get_commit_hash()
-    output_folder = os.path.join(root_path, model_name + "-" + date_str + "-" + commit_hash)
-    return output_folder
+    return Path(root_path) / f"{model_name}-{date_str}-{commit_hash}"
 
 
 def remove_experiment_folder(experiment_path: Union[str, os.PathLike[Any]]) -> None:
-    """Check folder if there is a checkpoint, otherwise remove the folder"""
+    """Check folder if there is a checkpoint, otherwise remove the folder."""
     experiment_path = str(experiment_path)
     fs = fsspec.get_mapper(experiment_path).fs
     checkpoint_files = fs.glob(os.path.join(experiment_path, "*.pth"))
@@ -95,7 +99,7 @@ def remove_experiment_folder(experiment_path: Union[str, os.PathLike[Any]]) -> N
 
 
 def count_parameters(model: torch.nn.Module) -> int:
-    r"""Count number of trainable parameters in a network"""
+    r"""Count number of trainable parameters in a network."""
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
@@ -139,19 +143,18 @@ class KeepAverage:
         self.avg_values[name] = init_val
         self.iters[name] = init_iter
 
-    def update_value(self, name: str, value: float, weighted_avg: bool = False) -> None:
+    def update_value(self, name: str, value: float, *, weighted_avg: bool = False) -> None:
         if name not in self.avg_values:
             # add value if not exist before
             self.add_value(name, init_val=value)
+        # else update existing value
+        elif weighted_avg:
+            self.avg_values[name] = 0.99 * self.avg_values[name] + 0.01 * value
+            self.iters[name] += 1
         else:
-            # else update existing value
-            if weighted_avg:
-                self.avg_values[name] = 0.99 * self.avg_values[name] + 0.01 * value
-                self.iters[name] += 1
-            else:
-                self.avg_values[name] = self.avg_values[name] * self.iters[name] + value
-                self.iters[name] += 1
-                self.avg_values[name] /= self.iters[name]
+            self.avg_values[name] = self.avg_values[name] * self.iters[name] + value
+            self.iters[name] += 1
+            self.avg_values[name] /= self.iters[name]
 
     def add_values(self, name_dict: dict[str, float]) -> None:
         for key, value in name_dict.items():

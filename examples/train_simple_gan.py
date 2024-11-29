@@ -1,10 +1,10 @@
-"""
-This example shows training of a simple GAN model with MNIST dataset using Gradient Accumulation and Advanced
-Optimization where you call optimizer steps manually.
+"""This example shows training of a simple GAN model on the MNIST dataset.
+
+Using Gradient Accumulation and Advanced Optimization where you call optimizer steps manually.
 """
 
-import os
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -22,11 +22,11 @@ is_cuda = torch.cuda.is_available()
 
 
 class Generator(nn.Module):
-    def __init__(self, latent_dim, img_shape):
+    def __init__(self, latent_dim, img_shape) -> None:
         super().__init__()
         self.img_shape = img_shape
 
-        def block(in_feat, out_feat, normalize=True):
+        def block(in_feat, out_feat, *, normalize=True):
             layers = [nn.Linear(in_feat, out_feat)]
             if normalize:
                 layers.append(nn.BatchNorm1d(out_feat, 0.8))
@@ -44,12 +44,11 @@ class Generator(nn.Module):
 
     def forward(self, z):
         img = self.model(z)
-        img = img.view(img.size(0), *self.img_shape)
-        return img
+        return img.view(img.size(0), *self.img_shape)
 
 
 class Discriminator(nn.Module):
-    def __init__(self, img_shape):
+    def __init__(self, img_shape) -> None:
         super().__init__()
 
         self.model = nn.Sequential(
@@ -63,9 +62,7 @@ class Discriminator(nn.Module):
 
     def forward(self, img):
         img_flat = img.view(img.size(0), -1)
-        validity = self.model(img_flat)
-
-        return validity
+        return self.model(img_flat)
 
 
 @dataclass
@@ -76,7 +73,7 @@ class GANModelConfig(TrainerConfig):
 
 
 class GANModel(TrainerModel):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         data_shape = (1, 28, 28)
         self.generator = Generator(latent_dim=100, img_shape=data_shape)
@@ -153,11 +150,10 @@ class GANModel(TrainerModel):
 
     def get_data_loader(self, config, assets, is_eval, samples, verbose, num_gpus, rank=0):  # pylint: disable=unused-argument
         transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
-        dataset = MNIST(os.getcwd(), train=not is_eval, download=True, transform=transform)
+        dataset = MNIST(Path.cwd(), train=not is_eval, download=True, transform=transform)
         dataset.data = dataset.data[:64]
         dataset.targets = dataset.targets[:64]
-        dataloader = DataLoader(dataset, batch_size=config.batch_size, drop_last=True, shuffle=True)
-        return dataloader
+        return DataLoader(dataset, batch_size=config.batch_size, drop_last=True, shuffle=True)
 
 
 if __name__ == "__main__":
@@ -166,6 +162,6 @@ if __name__ == "__main__":
     config.grad_clip = None
 
     model = GANModel()
-    trainer = Trainer(TrainerArgs(), config, model=model, gpu=0 if is_cuda else None)
+    trainer = Trainer(TrainerArgs(), config, model=model, output_path=Path.cwd(), gpu=0 if is_cuda else None)
     trainer.config.epochs = 10
     trainer.fit()

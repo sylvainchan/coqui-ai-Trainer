@@ -1,9 +1,28 @@
-[build-system]
-requires = ["setuptools", "setuptools-scm"]
-build-backend = "setuptools.build_meta"
+#
+#                   ,*++++++*,                ,*++++++*,
+#                *++.        .+++          *++.        .++*
+#              *+*     ,++++*   *+*      *+*   ,++++,     *+*
+#             ,+,   .++++++++++* ,++,,,,*+, ,++++++++++.   *+,
+#             *+.  .++++++++++++..++    *+.,++++++++++++.  .+*
+#             .+*   ++++++++++++.*+,    .+*.++++++++++++   *+,
+#              .++   *++++++++* ++,      .++.*++++++++*   ++,
+#               ,+++*.    . .*++,          ,++*.      .*+++*
+#              *+,   .,*++**.                  .**++**.   ,+*
+#             .+*                                          *+,
+#             *+.                   Coqui                  .+*
+#             *+*              +++ Trainer +++             *+*
+#             .+++*.            .          .             *+++.
+#              ,+* *+++*...                       ...*+++* *+,
+#               .++.    .""""+++++++****+++++++"""".     ++.
+#                 ,++.              ****              .++,
+#                   .++*                            *++.
+#                       *+++,                  ,+++*
+#                           .,*++++::::::++++*,.
+#
 
-[tool.setuptools.packages.find]
-include = ["trainer*"]
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [project]
 name = "coqui-tts-trainer"
@@ -76,31 +95,59 @@ Homepage = "https://github.com/idiap/coqui-ai-Trainer"
 Repository = "https://github.com/idiap/coqui-ai-Trainer"
 Issues = "https://github.com/idiap/coqui-ai-Trainer/issues"
 
+[tool.hatch.build]
+exclude = [
+    "/.github",
+    "/.gitignore",
+    "/.pre-commit-config.yaml",
+    "/CODE_OF_CONDUCT.md",
+    "/CONTRIBUTING.md",
+    "/Makefile",
+    "/tests",
+    "/trainer/TODO.txt",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["trainer"]
+
 [tool.ruff]
 line-length = 120
 target-version = "py39"
 lint.extend-select = [
-    "B",  # bugbear
-    "I",  # import sorting
+    "ANN204", # type hints
+    "B",      # bugbear
+    "D2",     # docs
+    "D412",
+    "D415",
+    "EM",     # error messages
+    "FBT",    # boolean arguments
+    "FLY",
+    "I",      # import sorting
     "PIE",
-    "PLC",
-    "PLE",
-    "PLW",
-    "RUF",
-    "UP",  # pyupgrade
+    "PL",     # pylint
+    "RET",    # return statements
+    "RUF",    # ruff-specific
+    "UP",     # pyupgrade
+    "SIM",    # simplify
 ]
 
 lint.ignore = [
     "F821",  # TODO: enable
     "PLW2901",  # TODO: enable
-    "UP032",  # TODO: enable
+    "PLR09",
 ]
 
 [tool.ruff.lint.per-file-ignores]
 "**/__init__.py" = [
-    "F401", # init files may have "unused" imports for now
-    "F403", # init files may have star imports for now
+    "F401",  # init files may have "unused" imports for now
+    "F403",  # init files may have star imports for now
 ]
+"tests/**" = [
+    "PLR2004",  # magic values are ok in tests
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
 
 [tool.coverage.report]
 show_missing = true

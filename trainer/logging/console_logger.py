@@ -1,7 +1,8 @@
 import datetime
 import logging
+import os
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Optional, Union
 
 from trainer.utils.distributed import rank_zero_only
 
@@ -43,9 +44,9 @@ class ConsoleLogger:
         return now.strftime("%Y-%m-%d %H:%M:%S")
 
     @rank_zero_only
-    def print_epoch_start(self, epoch: int, max_epoch: int, output_path: Optional[str] = None) -> None:
+    def print_epoch_start(self, epoch: int, max_epoch: int, output_path: Optional[Union[str, os.PathLike[Any]]] = None):
         self.log_with_flush(
-            "\n{}{} > EPOCH: {}/{}{}".format(tcolors.UNDERLINE, tcolors.BOLD, epoch, max_epoch, tcolors.ENDC),
+            f"\n{tcolors.UNDERLINE}{tcolors.BOLD} > EPOCH: {epoch}/{max_epoch}{tcolors.ENDC}",
         )
         if output_path is not None:
             self.log_with_flush(f" --> {output_path}")
@@ -60,15 +61,13 @@ class ConsoleLogger:
     ) -> None:
         indent = "     | > "
         self.log_with_flush("")
-        log_text = "{}   --> TIME: {} -- STEP: {}/{} -- GLOBAL_STEP: {}{}\n".format(
-            tcolors.BOLD, self.get_time(), step, batch_steps, global_step, tcolors.ENDC
-        )
+        log_text = f"{tcolors.BOLD}   --> TIME: {self.get_time()} -- STEP: {step}/{batch_steps} -- GLOBAL_STEP: {global_step}{tcolors.ENDC}\n"
         for key, value in loss_dict.items():
             # print the avg value if given
-            if f"avg_{key}" in avg_loss_dict.keys():
+            if f"avg_{key}" in avg_loss_dict:
                 log_text += "{}{}: {}  ({})\n".format(indent, key, str(value), str(avg_loss_dict[f"avg_{key}"]))
             else:
-                log_text += "{}{}: {} \n".format(indent, key, str(value))
+                log_text += f"{indent}{key}: {value!s} \n"
         self.log_with_flush(log_text)
 
     # pylint: disable=unused-argument
@@ -77,7 +76,7 @@ class ConsoleLogger:
         indent = "     | > "
         log_text = f"\n{tcolors.BOLD}   --> TRAIN PERFORMACE -- EPOCH TIME: {epoch_time:.2f} sec -- GLOBAL_STEP: {global_step}{tcolors.ENDC}\n"
         for key, value in print_dict.items():
-            log_text += "{}{}: {}\n".format(indent, key, str(value))
+            log_text += f"{indent}{key}: {value!s}\n"
         self.log_with_flush(log_text)
 
     @rank_zero_only
@@ -90,16 +89,16 @@ class ConsoleLogger:
         log_text = f"{tcolors.BOLD}   --> STEP: {step}{tcolors.ENDC}\n"
         for key, value in loss_dict.items():
             # print the avg value if given
-            if f"avg_{key}" in avg_loss_dict.keys():
+            if f"avg_{key}" in avg_loss_dict:
                 log_text += "{}{}: {}  ({})\n".format(indent, key, str(value), str(avg_loss_dict[f"avg_{key}"]))
             else:
-                log_text += "{}{}: {} \n".format(indent, key, str(value))
+                log_text += f"{indent}{key}: {value!s} \n"
         self.log_with_flush(log_text)
 
     @rank_zero_only
     def print_epoch_end(self, epoch: int, avg_loss_dict: dict) -> None:
         indent = "     | > "
-        log_text = "\n  {}--> EVAL PERFORMANCE{}\n".format(tcolors.BOLD, tcolors.ENDC)
+        log_text = f"\n  {tcolors.BOLD}--> EVAL PERFORMANCE{tcolors.ENDC}\n"
         for key, value in avg_loss_dict.items():
             # print the avg value if given
             color = ""
@@ -113,6 +112,6 @@ class ConsoleLogger:
                 elif diff > 0:
                     color = tcolors.FAIL
                     sign = "+"
-            log_text += "{}{}:{} {} {}({}{})\n".format(indent, key, color, str(value), tcolors.ENDC, sign, str(diff))
+            log_text += f"{indent}{key}:{color} {value!s} {tcolors.ENDC}({sign}{diff!s})\n"
         self.old_eval_loss_dict = avg_loss_dict
         self.log_with_flush(log_text)

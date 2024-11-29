@@ -62,6 +62,7 @@ def copy_model_files(config: Coqpit, out_path: Union[str, os.PathLike[Any]], new
 def load_fsspec(
     path: Union[str, os.PathLike[Any]],
     map_location: Optional[Union[str, Callable[[Storage, str], Storage], torch.device, dict[str, str]]] = None,
+    *,
     cache: bool = True,
     **kwargs,
 ) -> Any:
@@ -76,7 +77,7 @@ def load_fsspec(
     Returns:
         Object stored in path.
     """
-    is_local = os.path.isdir(path) or os.path.isfile(path)
+    is_local = Path(path).exists()
     if cache and not is_local:
         with fsspec.open(
             f"filecache::{path}",
@@ -92,6 +93,7 @@ def load_fsspec(
 def load_checkpoint(
     model: torch.nn.Module,
     checkpoint_path: Union[str, os.PathLike[Any]],
+    *,
     use_cuda: bool = False,
     eval: bool = False,
     cache: bool = False,
@@ -128,10 +130,7 @@ def save_model(
     save_func: Optional[Callable] = None,
     **kwargs,
 ) -> None:
-    if hasattr(model, "module"):
-        model_state = model.module.state_dict()
-    else:
-        model_state = model.state_dict()
+    model_state = model.module.state_dict() if hasattr(model, "module") else model.state_dict()
     if isinstance(optimizer, list):
         optimizer_state = [optim.state_dict() for optim in optimizer]
     elif isinstance(optimizer, dict):
@@ -204,6 +203,7 @@ def save_best_model(
     current_step: int,
     epoch: int,
     out_path: Union[str, os.PathLike[Any]],
+    *,
     keep_all_best: bool = False,
     keep_after: int = 0,
     save_func: Optional[Callable] = None,
@@ -304,7 +304,8 @@ def get_last_checkpoint(path: Union[str, os.PathLike[Any]]) -> tuple[str, str]:
 
     # check what models were found
     if not last_models:
-        raise ValueError(f"No models found in continue path {path}!")
+        msg = f"No models found in continue path {path}!"
+        raise ValueError(msg)
     if "checkpoint" not in last_models:  # no checkpoint just best model
         last_models["checkpoint"] = last_models["best_model"]
     elif "best_model" not in last_models:  # no best model
@@ -332,7 +333,7 @@ def keep_n_checkpoints(path: Union[str, os.PathLike[Any]], n: int) -> None:
 
 
 def sort_checkpoints(
-    output_path: Union[str, os.PathLike[Any]], checkpoint_prefix: str, use_mtime: bool = False
+    output_path: Union[str, os.PathLike[Any]], checkpoint_prefix: str, *, use_mtime: bool = False
 ) -> list[str]:
     """Sort checkpoint paths based on the checkpoint step number.
 

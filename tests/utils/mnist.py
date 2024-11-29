@@ -1,5 +1,5 @@
-import os
 from dataclasses import dataclass
+from pathlib import Path
 
 import torch
 from torch import nn
@@ -23,7 +23,7 @@ class MnistModelConfig(TrainerConfig):
 
 
 class MnistModel(TrainerModel):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
 
         # mnist images are (1, 28, 28) (channels, height, width)
@@ -42,8 +42,7 @@ class MnistModel(TrainerModel):
         x = F.relu(x)
         x = self.layer_3(x)
 
-        x = F.log_softmax(x, dim=1)
-        return x
+        return F.log_softmax(x, dim=1)
 
     def train_step(self, batch, criterion):
         x, y = batch
@@ -61,10 +60,9 @@ class MnistModel(TrainerModel):
     def get_criterion():
         return torch.nn.NLLLoss()
 
-    def get_data_loader(self, config, assets, is_eval, samples, verbose, num_gpus, rank=0):  # pylint: disable=unused-argument
+    def get_data_loader(self, config, assets, *, is_eval, samples=None, verbose=False, num_gpus=1, rank=0):  # pylint: disable=unused-argument
         transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
-        dataset = MNIST(os.getcwd(), train=not is_eval, download=True, transform=transform)
+        dataset = MNIST(Path.cwd(), train=not is_eval, download=True, transform=transform)
         dataset.data = dataset.data[:256]
         dataset.targets = dataset.targets[:256]
-        dataloader = DataLoader(dataset, batch_size=config.batch_size)
-        return dataloader
+        return DataLoader(dataset, batch_size=config.batch_size)

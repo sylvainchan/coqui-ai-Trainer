@@ -16,14 +16,14 @@ class TensorboardLogger(BaseDashboardLogger):
         layer_num = 1
         for name, param in model.named_parameters():
             if param.numel() == 1:
-                self.writer.add_scalar("layer{}-{}/value".format(layer_num, name), param.max(), step)
+                self.writer.add_scalar(f"layer{layer_num}-{name}/value", param.max(), step)
             else:
-                self.writer.add_scalar("layer{}-{}/max".format(layer_num, name), param.max(), step)
-                self.writer.add_scalar("layer{}-{}/min".format(layer_num, name), param.min(), step)
-                self.writer.add_scalar("layer{}-{}/mean".format(layer_num, name), param.mean(), step)
-                self.writer.add_scalar("layer{}-{}/std".format(layer_num, name), param.std(), step)
-                self.writer.add_histogram("layer{}-{}/param".format(layer_num, name), param, step)
-                self.writer.add_histogram("layer{}-{}/grad".format(layer_num, name), param.grad, step)
+                self.writer.add_scalar(f"layer{layer_num}-{name}/max", param.max(), step)
+                self.writer.add_scalar(f"layer{layer_num}-{name}/min", param.min(), step)
+                self.writer.add_scalar(f"layer{layer_num}-{name}/mean", param.mean(), step)
+                self.writer.add_scalar(f"layer{layer_num}-{name}/std", param.std(), step)
+                self.writer.add_histogram(f"layer{layer_num}-{name}/param", param, step)
+                self.writer.add_histogram(f"layer{layer_num}-{name}/grad", param.grad, step)
             layer_num += 1
 
     def add_config(self, config: TrainerConfig) -> None:
@@ -46,11 +46,11 @@ class TensorboardLogger(BaseDashboardLogger):
 
     def add_scalars(self, scope_name: str, scalars, step: int) -> None:
         for key, value in scalars.items():
-            self.add_scalar("{}/{}".format(scope_name, key), value, step)
+            self.add_scalar(f"{scope_name}/{key}", value, step)
 
     def add_figures(self, scope_name: str, figures, step: int) -> None:
         for key, value in figures.items():
-            self.writer.add_figure("{}/{}".format(scope_name, key), value, step)
+            self.writer.add_figure(f"{scope_name}/{key}", value, step)
 
     def add_audios(self, scope_name: str, audios, step: int, sample_rate: int) -> None:
         for key, value in audios.items():
@@ -58,7 +58,7 @@ class TensorboardLogger(BaseDashboardLogger):
                 value = value.astype("float32")
             try:
                 self.add_audio(
-                    "{}/{}".format(scope_name, key),
+                    f"{scope_name}/{key}",
                     value,
                     step,
                     sample_rate=sample_rate,

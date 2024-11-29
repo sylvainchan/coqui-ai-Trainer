@@ -1,5 +1,5 @@
-import os
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -17,11 +17,11 @@ is_cuda = torch.cuda.is_available()
 
 
 class Generator(nn.Module):
-    def __init__(self, latent_dim, img_shape):
+    def __init__(self, latent_dim, img_shape) -> None:
         super().__init__()
         self.img_shape = img_shape
 
-        def block(in_feat, out_feat, normalize=True):
+        def block(in_feat, out_feat, *, normalize=True):
             layers = [nn.Linear(in_feat, out_feat)]
             if normalize:
                 layers.append(nn.BatchNorm1d(out_feat, 0.8))
@@ -39,12 +39,11 @@ class Generator(nn.Module):
 
     def forward(self, z):
         img = self.model(z)
-        img = img.view(img.size(0), *self.img_shape)
-        return img
+        return img.view(img.size(0), *self.img_shape)
 
 
 class Discriminator(nn.Module):
-    def __init__(self, img_shape):
+    def __init__(self, img_shape) -> None:
         super().__init__()
 
         self.model = nn.Sequential(
@@ -58,9 +57,7 @@ class Discriminator(nn.Module):
 
     def forward(self, img):
         img_flat = img.view(img.size(0), -1)
-        validity = self.model(img_flat)
-
-        return validity
+        return self.model(img_flat)
 
 
 def test_overfit_mnist_simple_gan(tmp_path):
@@ -71,7 +68,7 @@ def test_overfit_mnist_simple_gan(tmp_path):
         training_seed: int = 666
 
     class GANModel(TrainerModel):
-        def __init__(self):
+        def __init__(self) -> None:
             super().__init__()
             data_shape = (1, 28, 28)
             self.generator = Generator(latent_dim=100, img_shape=data_shape)
@@ -102,15 +99,15 @@ def test_overfit_mnist_simple_gan(tmp_path):
                 return {"model_outputs": logits}, {"loss": loss}
 
             # train generator
-            if optimizer_idx == 1:
-                imgs_gen = self.generator(z)
+            assert optimizer_idx == 1
+            imgs_gen = self.generator(z)
 
-                valid = torch.ones(imgs.size(0), 1)
-                valid = valid.type_as(imgs)
+            valid = torch.ones(imgs.size(0), 1)
+            valid = valid.type_as(imgs)
 
-                logits = self.discriminator(imgs_gen)
-                loss_real = criterion(logits, valid)
-                return {"model_outputs": logits}, {"loss": loss_real}
+            logits = self.discriminator(imgs_gen)
+            loss_real = criterion(logits, valid)
+            return {"model_outputs": logits}, {"loss": loss_real}
 
         @torch.no_grad()
         def eval_step(self, batch, criterion, optimizer_idx):
@@ -126,11 +123,10 @@ def test_overfit_mnist_simple_gan(tmp_path):
 
         def get_data_loader(self, config, assets, is_eval, samples, verbose, num_gpus, rank=0):  # pylint: disable=unused-argument
             transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
-            dataset = MNIST(os.getcwd(), train=not is_eval, download=True, transform=transform)
+            dataset = MNIST(Path.cwd(), train=not is_eval, download=True, transform=transform)
             dataset.data = dataset.data[:64]
             dataset.targets = dataset.targets[:64]
-            dataloader = DataLoader(dataset, batch_size=config.batch_size, drop_last=True, shuffle=True)
-            return dataloader
+            return DataLoader(dataset, batch_size=config.batch_size, drop_last=True, shuffle=True)
 
     config = GANModelConfig()
     config.batch_size = 64
@@ -163,7 +159,7 @@ def test_overfit_accelerate_mnist_simple_gan(tmp_path):
         training_seed: int = 666
 
     class GANModel(TrainerModel):
-        def __init__(self):
+        def __init__(self) -> None:
             super().__init__()
             data_shape = (1, 28, 28)
             self.generator = Generator(latent_dim=100, img_shape=data_shape)
@@ -194,15 +190,15 @@ def test_overfit_accelerate_mnist_simple_gan(tmp_path):
                 return {"model_outputs": logits}, {"loss": loss}
 
             # train generator
-            if optimizer_idx == 1:
-                imgs_gen = self.generator(z)
+            assert optimizer_idx == 1
+            imgs_gen = self.generator(z)
 
-                valid = torch.ones(imgs.size(0), 1)
-                valid = valid.type_as(imgs)
+            valid = torch.ones(imgs.size(0), 1)
+            valid = valid.type_as(imgs)
 
-                logits = self.discriminator(imgs_gen)
-                loss_real = criterion(logits, valid)
-                return {"model_outputs": logits}, {"loss": loss_real}
+            logits = self.discriminator(imgs_gen)
+            loss_real = criterion(logits, valid)
+            return {"model_outputs": logits}, {"loss": loss_real}
 
         @torch.no_grad()
         def eval_step(self, batch, criterion, optimizer_idx):
@@ -218,11 +214,10 @@ def test_overfit_accelerate_mnist_simple_gan(tmp_path):
 
         def get_data_loader(self, config, assets, is_eval, samples, verbose, num_gpus, rank=0):  # pylint: disable=unused-argument
             transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
-            dataset = MNIST(os.getcwd(), train=not is_eval, download=True, transform=transform)
+            dataset = MNIST(Path.cwd(), train=not is_eval, download=True, transform=transform)
             dataset.data = dataset.data[:64]
             dataset.targets = dataset.targets[:64]
-            dataloader = DataLoader(dataset, batch_size=config.batch_size, drop_last=True, shuffle=False)
-            return dataloader
+            return DataLoader(dataset, batch_size=config.batch_size, drop_last=True, shuffle=False)
 
     config = GANModelConfig()
     config.batch_size = 64
@@ -257,7 +252,7 @@ def test_overfit_manual_optimize_mnist_simple_gan(tmp_path):
         training_seed: int = 666
 
     class GANModel(TrainerModel):
-        def __init__(self):
+        def __init__(self) -> None:
             super().__init__()
             data_shape = (1, 28, 28)
             self.generator = Generator(latent_dim=100, img_shape=data_shape)
@@ -331,11 +326,10 @@ def test_overfit_manual_optimize_mnist_simple_gan(tmp_path):
 
         def get_data_loader(self, config, assets, is_eval, samples, verbose, num_gpus, rank=0):  # pylint: disable=unused-argument
             transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
-            dataset = MNIST(os.getcwd(), train=not is_eval, download=True, transform=transform)
+            dataset = MNIST(Path.cwd(), train=not is_eval, download=True, transform=transform)
             dataset.data = dataset.data[:64]
             dataset.targets = dataset.targets[:64]
-            dataloader = DataLoader(dataset, batch_size=config.batch_size, drop_last=True, shuffle=True)
-            return dataloader
+            return DataLoader(dataset, batch_size=config.batch_size, drop_last=True, shuffle=True)
 
     config = GANModelConfig()
     config.batch_size = 64
@@ -368,7 +362,7 @@ def test_overfit_manual_optimize_grad_accum_mnist_simple_gan(tmp_path):
         training_seed: int = 666
 
     class GANModel(TrainerModel):
-        def __init__(self):
+        def __init__(self) -> None:
             super().__init__()
             data_shape = (1, 28, 28)
             self.generator = Generator(latent_dim=100, img_shape=data_shape)
@@ -445,11 +439,10 @@ def test_overfit_manual_optimize_grad_accum_mnist_simple_gan(tmp_path):
 
         def get_data_loader(self, config, assets, is_eval, samples, verbose, num_gpus, rank=0):  # pylint: disable=unused-argument
             transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
-            dataset = MNIST(os.getcwd(), train=not is_eval, download=True, transform=transform)
+            dataset = MNIST(Path.cwd(), train=not is_eval, download=True, transform=transform)
             dataset.data = dataset.data[:64]
             dataset.targets = dataset.targets[:64]
-            dataloader = DataLoader(dataset, batch_size=config.batch_size, drop_last=True, shuffle=True)
-            return dataloader
+            return DataLoader(dataset, batch_size=config.batch_size, drop_last=True, shuffle=True)
 
     config = GANModelConfig()
     config.batch_size = 64
@@ -482,7 +475,7 @@ def test_overfit_manual_accelerate_optimize_grad_accum_mnist_simple_gan(tmp_path
         training_seed: int = 666
 
     class GANModel(TrainerModel):
-        def __init__(self):
+        def __init__(self) -> None:
             super().__init__()
             data_shape = (1, 28, 28)
             self.generator = Generator(latent_dim=100, img_shape=data_shape)
@@ -561,11 +554,10 @@ def test_overfit_manual_accelerate_optimize_grad_accum_mnist_simple_gan(tmp_path
 
         def get_data_loader(self, config, assets, is_eval, samples, verbose, num_gpus, rank=0):  # pylint: disable=unused-argument
             transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
-            dataset = MNIST(os.getcwd(), train=not is_eval, download=True, transform=transform)
+            dataset = MNIST(Path.cwd(), train=not is_eval, download=True, transform=transform)
             dataset.data = dataset.data[:64]
             dataset.targets = dataset.targets[:64]
-            dataloader = DataLoader(dataset, batch_size=config.batch_size, drop_last=True, shuffle=True)
-            return dataloader
+            return DataLoader(dataset, batch_size=config.batch_size, drop_last=True, shuffle=True)
 
     config = GANModelConfig()
     config.batch_size = 64

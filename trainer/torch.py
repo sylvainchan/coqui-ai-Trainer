@@ -1,3 +1,4 @@
+import contextlib
 from collections.abc import Iterator
 from typing import Optional
 
@@ -7,7 +8,9 @@ from torch.utils.data.distributed import DistributedSampler
 
 
 class DistributedSamplerWrapper(DistributedSampler):
-    """Wrapper over Sampler for distributed training. It allows you to use any sampler in distributed mode.
+    """Wrapper over Sampler for distributed training.
+
+    It allows you to use any sampler in distributed mode.
     It is especially useful in conjunction with torch.nn.parallel.DistributedDataParallel. In such a case, each
     process can pass a torch.utils.data.DistributedSampler instance as a torch.utils.data.DataLoader sampler,
     and load a subset of the original dataset that is exclusive to it.
@@ -32,6 +35,7 @@ class DistributedSamplerWrapper(DistributedSampler):
     def __init__(
         self,
         sampler,
+        *,
         num_replicas: Optional[int] = None,
         rank: Optional[int] = None,
         shuffle: bool = True,
@@ -75,7 +79,7 @@ class DistributedSamplerWrapper(DistributedSampler):
 
 # pylint: disable=protected-access
 class NoamLR(torch.optim.lr_scheduler._LRScheduler):
-    def __init__(self, optimizer: torch.optim.Optimizer, warmup_steps: float = 0.1, last_epoch: int = -1):
+    def __init__(self, optimizer: torch.optim.Optimizer, warmup_steps: float = 0.1, last_epoch: int = -1) -> None:
         self.warmup_steps = float(warmup_steps)
         super().__init__(optimizer, last_epoch)
 
@@ -90,7 +94,9 @@ class NoamLR(torch.optim.lr_scheduler._LRScheduler):
 # pylint: disable=protected-access
 class StepwiseGradualLR(torch.optim.lr_scheduler._LRScheduler):
     """Hardcoded step-wise learning rate scheduling.
-    Necessary for CapacitronVAE"""
+
+    Necessary for CapacitronVAE.
+    """
 
     def __init__(self, optimizer: torch.optim.Optimizer, gradual_learning_rates, last_epoch: int = -1) -> None:
         self.gradual_learning_rates = gradual_learning_rates
@@ -105,11 +111,9 @@ class StepwiseGradualLR(torch.optim.lr_scheduler._LRScheduler):
             rates.append(values[1])
 
         boolean_indeces = np.less_equal(step_thresholds, step)
-        try:
+        # Ignore steps larger than the last step in the list
+        with contextlib.suppress(IndexError):
             last_true = np.where(boolean_indeces)[0][-1]  # pylint: disable=singleton-comparison
-        except IndexError:
-            # For the steps larger than the last step in the list
-            pass
         lr = rates[np.max(last_true, 0)]
 
         # Return last lr if step is above the set threshold

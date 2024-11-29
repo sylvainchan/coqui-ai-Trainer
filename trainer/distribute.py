@@ -10,9 +10,7 @@ from trainer.logger import logger
 
 
 def distribute() -> None:
-    """
-    Call 👟Trainer training script in DDP mode.
-    """
+    """Call 👟Trainer training script in DDP mode."""
     parser = TrainerArgs().init_argparse(arg_prefix="")
     parser.add_argument("--script", type=str, help="Target training script to distibute.")
     parser.add_argument(
@@ -28,10 +26,7 @@ def distribute() -> None:
 
     # set arguments for train.py
     folder_path = pathlib.Path(__file__).parent.absolute()
-    if os.path.exists(os.path.join(folder_path, args.script)):
-        command = [os.path.join(folder_path, args.script)]
-    else:
-        command = [args.script]
+    command = [str(folder_path / args.script)] if (folder_path / args.script).is_file() else [args.script]
 
     # Pass all the TrainerArgs fields
     command.append(f"--continue_path={args.continue_path}")
@@ -65,8 +60,7 @@ def get_gpus(args):
         gpus = os.environ["CUDA_VISIBLE_DEVICES"]
     else:
         gpus = args.gpus
-    gpus = list(map(str.strip, gpus.split(",")))
-    return gpus
+    return list(map(str.strip, gpus.split(",")))
 
 
 if __name__ == "__main__":
