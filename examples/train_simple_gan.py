@@ -44,8 +44,7 @@ class Generator(nn.Module):
 
     def forward(self, z):
         img = self.model(z)
-        img = img.view(img.size(0), *self.img_shape)
-        return img
+        return img.view(img.size(0), *self.img_shape)
 
 
 class Discriminator(nn.Module):
@@ -63,9 +62,7 @@ class Discriminator(nn.Module):
 
     def forward(self, img):
         img_flat = img.view(img.size(0), -1)
-        validity = self.model(img_flat)
-
-        return validity
+        return self.model(img_flat)
 
 
 @dataclass
@@ -156,8 +153,7 @@ class GANModel(TrainerModel):
         dataset = MNIST(Path.cwd(), train=not is_eval, download=True, transform=transform)
         dataset.data = dataset.data[:64]
         dataset.targets = dataset.targets[:64]
-        dataloader = DataLoader(dataset, batch_size=config.batch_size, drop_last=True, shuffle=True)
-        return dataloader
+        return DataLoader(dataset, batch_size=config.batch_size, drop_last=True, shuffle=True)
 
 
 if __name__ == "__main__":

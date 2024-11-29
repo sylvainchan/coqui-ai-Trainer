@@ -44,8 +44,7 @@ class MnistModel(TrainerModel):
         x = F.relu(x)
         x = self.layer_3(x)
 
-        x = F.log_softmax(x, dim=1)
-        return x
+        return F.log_softmax(x, dim=1)
 
     def train_step(self, batch, criterion):
         x, y = batch
@@ -68,8 +67,7 @@ class MnistModel(TrainerModel):
         dataset = MNIST(Path.cwd(), train=not is_eval, download=True, transform=transform)
         dataset.data = dataset.data[:256]
         dataset.targets = dataset.targets[:256]
-        dataloader = DataLoader(dataset, batch_size=config.batch_size)
-        return dataloader
+        return DataLoader(dataset, batch_size=config.batch_size)
 
 
 def main():

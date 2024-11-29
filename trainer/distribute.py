@@ -60,8 +60,7 @@ def get_gpus(args):
         gpus = os.environ["CUDA_VISIBLE_DEVICES"]
     else:
         gpus = args.gpus
-    gpus = list(map(str.strip, gpus.split(",")))
-    return gpus
+    return list(map(str.strip, gpus.split(",")))
 
 
 if __name__ == "__main__":
