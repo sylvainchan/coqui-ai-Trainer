@@ -176,8 +176,9 @@ class TrainerConfig(Coqpit):
     epochs: int = field(default=1000, metadata={"help": "Number of epochs to train. Defaults to 1000"})
     batch_size: int = field(default=32, metadata={"help": "Batch size to use. Defaults to 32"})
     eval_batch_size: int = field(default=16, metadata={"help": "Batch size to use for eval. Defaults to 16"})
-    grad_clip: float = field(
-        default=0.0, metadata={"help": "Gradient clipping value. Disabled if <= 0. Defaults to 0.0"}
+    grad_clip: float | list[float] = field(
+        default=0.0,
+        metadata={"help": "Gradient clipping value (for each optimizer if a list). Disabled if <= 0. Defaults to 0.0"},
     )
     scheduler_after_epoch: bool = field(
         default=True,

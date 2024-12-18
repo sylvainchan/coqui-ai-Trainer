@@ -20,7 +20,9 @@ class TrainerModel(ABC, nn.Module):
     """Abstract 🐸TTS class. Every new 🐸TTS model must inherit this."""
 
     @abstractmethod
-    def forward(self, input: torch.Tensor, *args, aux_input: dict[str, Any] | None = None, **kwargs) -> dict:
+    def forward(
+        self, input: torch.Tensor, *args: Any, aux_input: dict[str, Any] | None = None, **kwargs: Any
+    ) -> dict[str, Any]:
         """Forward ... for the model mainly used in training.
 
         You can be flexible here and use different number of arguments and argument names since it is intended to be
@@ -39,7 +41,7 @@ class TrainerModel(ABC, nn.Module):
         ...
         return outputs_dict
 
-    def format_batch(self, batch: dict) -> dict:
+    def format_batch(self, batch: dict[str, Any] | list[Any]) -> dict[str, Any] | list[Any]:
         """Format batch returned by the data loader before sending it to the model.
 
         If not implemented, model uses the batch as is.
@@ -47,7 +49,7 @@ class TrainerModel(ABC, nn.Module):
         """
         return batch
 
-    def format_batch_on_device(self, batch: dict) -> dict:
+    def format_batch_on_device(self, batch: dict[str, Any] | list[Any]) -> dict[str, Any] | list[Any]:
         """Format batch on device before sending it to the model.
 
         If not implemented, model uses the batch as is.
@@ -55,7 +57,7 @@ class TrainerModel(ABC, nn.Module):
         """
         return batch
 
-    def train_step(self, *args: Any, **kwargs: Any) -> tuple[dict, dict]:
+    def train_step(self, *args: Any, **kwargs: Any) -> tuple[dict[str, Any], dict[str, Any]]:
         """Perform a single training step. Run the model forward ... and compute losses.
 
         Args:
@@ -64,7 +66,7 @@ class TrainerModel(ABC, nn.Module):
             optimizer_idx (int): Index of optimizer to use. 0 for the generator and 1 for the discriminator networks.
 
         Returns:
-            Tuple[Dict, Dict]: Model ouputs and computed losses.
+            Tuple[Dict, Dict]: Model outputs and computed losses.
         """
         msg = " [!] `train_step()` is not implemented."
         raise NotImplementedError(msg)
@@ -89,7 +91,7 @@ class TrainerModel(ABC, nn.Module):
         raise NotImplementedError(msg)
 
     @torch.no_grad()
-    def eval_step(self, *args: Any, **kwargs: Any):
+    def eval_step(self, *args: Any, **kwargs: Any) -> tuple[dict[str, Any], dict[str, Any]]:
         """Perform a single evaluation step.
 
         Run the model forward ... and compute losses. In most cases, you can
@@ -112,7 +114,7 @@ class TrainerModel(ABC, nn.Module):
         raise NotImplementedError(msg)
 
     @abstractmethod
-    def get_data_loader(*args: Any, **kwargs: Any) -> torch.utils.data.DataLoader:
+    def get_data_loader(*args: Any, **kwargs: Any) -> torch.utils.data.DataLoader[Any]:
         """Get data loader for the model.
 
         Args:
@@ -134,7 +136,7 @@ class TrainerModel(ABC, nn.Module):
     def init_for_training(self) -> None:
         """Initialize model for training."""
 
-    def optimize(self, *args: Any, **kwargs: Any) -> tuple[dict, dict, float]:
+    def optimize(self, *args: Any, **kwargs: Any) -> tuple[dict[str, Any], dict[str, Any]]:
         """Model specific optimization step that must perform the following steps.
 
             1. Forward pass
@@ -149,7 +151,7 @@ class TrainerModel(ABC, nn.Module):
             trainer (Trainer): Trainer instance to be able to access the training closure.
 
         Returns:
-            Tuple[Dict, Dict, float]: Model outputs, loss dictionary and grad_norm value.
+            Tuple[Dict, Dict, float]: Model outputs, loss dictionary.
         """
         msg = " [!] `optimize()` is not implemented."
         raise NotImplementedError(msg)
@@ -161,7 +163,7 @@ class TrainerModel(ABC, nn.Module):
         optimizer: torch.optim.Optimizer,
         *args: Any,
         **kwargs: Any,
-    ) -> tuple[float, bool]:
+    ) -> None:
         """Backward pass with gradient scaling for custom `optimize` calls.
 
         Args:
@@ -174,7 +176,7 @@ class TrainerModel(ABC, nn.Module):
                 # https://nvidia.github.io/apex/advanced.html?highlight=accumulate#backward-passes-with-multiple-optimizers
                 with amp.scale_loss(loss, optimizer) as scaled_loss:
                     scaled_loss.backward()
-            else:
+            elif trainer.scaler is not None:
                 # model optimizer step in mixed precision mode
                 trainer.scaler.scale(loss).backward()
         else:
@@ -196,5 +198,7 @@ class TrainerModel(ABC, nn.Module):
     # def get_scheduler(self, optimizer: torch.optim.Optimizer):
     #     ...
 
-    # def get_criterion(self):
-    #     ...
+    def get_criterion(self) -> nn.Module | list[nn.Module]:
+        """Return model criterion."""
+        msg = "`get_criterion` is not implemented."
+        raise NotImplementedError(msg)

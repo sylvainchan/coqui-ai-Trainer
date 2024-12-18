@@ -56,8 +56,7 @@ class MnistModel(TrainerModel):
         loss = criterion(logits, y)
         return {"model_outputs": logits}, {"loss": loss}
 
-    @staticmethod
-    def get_criterion():
+    def get_criterion(self):
         return torch.nn.NLLLoss()
 
     def get_data_loader(self, config, assets, *, is_eval, samples=None, verbose=False, num_gpus=1, rank=0):  # pylint: disable=unused-argument

@@ -1,6 +1,7 @@
 import os
 import tempfile
 import traceback
+from typing import Any
 
 import soundfile as sf
 import torch
@@ -20,7 +21,7 @@ if is_mlflow_available():
 class MLFlowLogger(BaseDashboardLogger):
     def __init__(
         self,
-        log_uri: str,
+        log_uri: str | os.PathLike[Any],
         model_name: str,
         tags: str | None = None,
     ) -> None:

@@ -8,11 +8,11 @@ import shutil
 import sys
 import time
 import traceback
-from collections.abc import Callable, Generator, Iterable
+from collections.abc import Callable, Generator
 from contextlib import nullcontext, suppress
 from inspect import signature
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, cast, overload
 
 import torch
 import torch.distributed as dist
@@ -20,6 +20,7 @@ from torch import nn
 from torch.nn.parallel import DistributedDataParallel as DDP_th
 from torch.utils.data import DataLoader
 
+from trainer._types import Callback, LossDict, LRScheduler
 from trainer.callbacks import TrainerCallback
 from trainer.config import TrainerArgs, TrainerConfig
 from trainer.generic_utils import (
@@ -67,7 +68,7 @@ if is_apex_available():
 if is_pytorch_at_least_2_3():
     GradScaler = functools.partial(torch.GradScaler, device="cuda")
 else:
-    GradScaler = torch.cuda.amp.GradScaler
+    GradScaler = torch.cuda.amp.GradScaler  # type: ignore[assignment]
 
 
 class Trainer:
@@ -80,16 +81,16 @@ class Trainer:
         c_logger: ConsoleLogger | None = None,
         dashboard_logger: BaseDashboardLogger | None = None,
         model: TrainerModel | None = None,
-        get_model: Callable | None = None,
-        get_data_samples: Callable | None = None,
-        train_samples: list | None = None,
-        eval_samples: list | None = None,
-        test_samples: list | None = None,
-        train_loader: DataLoader | None = None,
-        eval_loader: DataLoader | None = None,
-        training_assets: dict | None = None,
+        get_model: Callable[..., TrainerModel] | None = None,
+        get_data_samples: Callable[..., list[Any]] | None = None,
+        train_samples: list[Any] | None = None,
+        eval_samples: list[Any] | None = None,
+        test_samples: list[Any] | None = None,
+        train_loader: DataLoader[Any] | None = None,
+        eval_loader: DataLoader[Any] | None = None,
+        training_assets: dict[str, Any] | None = None,
         parse_command_line_args: bool = True,
-        callbacks: dict[str, Callable] | None = None,
+        callbacks: dict[str, Callback] | None = None,
         gpu: int | None = None,
     ) -> None:
         """Simple yet powerful 🐸💬 TTS trainer for PyTorch.
@@ -230,8 +231,9 @@ class Trainer:
         self.dashboard_logger, self.c_logger = self.init_loggers(self.config, output_path, dashboard_logger, c_logger)
         # self.c_logger.logger = logger
 
-        if not self.config.log_model_step:
-            self.config.log_model_step = self.config.save_step
+        self.log_model_step = (
+            self.config.log_model_step if self.config.log_model_step is not None else self.config.save_step
+        )
 
         # make sure that start_with_eval is disabled if eval is disabled
         if not self.config.run_eval and self.start_with_eval:
@@ -241,13 +243,13 @@ class Trainer:
         self.epochs_done = 0
         self.restore_step = 0
         self.restore_epoch = 0
-        self.best_loss: float | dict[str, float | None] = {
+        self.best_loss: LossDict | float = {
             "train_loss": float("inf"),
             "eval_loss": float("inf") if self.config.run_eval else None,
         }
-        self.train_loader: DataLoader | None = None
-        self.test_loader: DataLoader | None = None
-        self.eval_loader: DataLoader | None = None
+        self.train_loader: DataLoader[Any] | None = None
+        self.test_loader: DataLoader[Any] | None = None
+        self.eval_loader: DataLoader[Any] | None = None
 
         self.keep_avg_train: KeepAverage | None = None
         self.keep_avg_eval: KeepAverage | None = None
@@ -258,6 +260,9 @@ class Trainer:
             else self.config.use_grad_scaler
         )
 
+        self.train_samples: list[Any] | None
+        self.eval_samples: list[Any] | None
+        self.test_samples: list[Any] | None
         if train_samples is not None:
             # use the provided samples
             self.train_samples = train_samples
@@ -265,7 +270,7 @@ class Trainer:
             self.test_samples = test_samples
         elif get_data_samples is not None:
             # run `get_data_samples` to init the data samples
-            (  # pylint: disable=unbalanced-tuple-unpacking
+            (
                 self.train_samples,
                 self.eval_samples,
                 self.test_samples,
@@ -359,7 +364,7 @@ class Trainer:
 
         # DISTRIBUTED
         if self.use_pt_ddp:
-            self.model = DDP_th(self.model, device_ids=[args.rank], output_device=args.rank)
+            self.model = DDP_th(self.model, device_ids=[args.rank], output_device=args.rank)  # type: ignore[assignment]
 
         # setup accelerator
         self.setup_accelerate()
@@ -399,7 +404,7 @@ class Trainer:
                 precision=self.config.precision,
             )
 
-    def prepare_accelerate_loader(self, data_loader: DataLoader) -> DataLoader:
+    def prepare_accelerate_loader(self, data_loader: DataLoader[Any]) -> DataLoader[Any]:
         """Prepare the accelerator for the training."""
         if self.use_accelerate:
             return self.accelerator.prepare_data_loader(data_loader)
@@ -408,9 +413,9 @@ class Trainer:
     @staticmethod
     def init_accelerate(
         model: TrainerModel,
-        optimizer: torch.optim.Optimizer,
-        training_dataloader: DataLoader,
-        scheduler,
+        optimizer: torch.optim.Optimizer | list[torch.optim.Optimizer],
+        training_dataloader: DataLoader[Any] | None,
+        scheduler: LRScheduler | list[LRScheduler] | dict[str, LRScheduler] | None,
         *,
         grad_accum_steps: int,
         mixed_precision: bool,
@@ -471,7 +476,7 @@ class Trainer:
     @staticmethod
     def init_loggers(
         config: TrainerConfig,
-        output_path: str,
+        output_path: str | os.PathLike[Any],
         dashboard_logger: BaseDashboardLogger | None = None,
         c_logger: ConsoleLogger | None = None,
     ) -> tuple[BaseDashboardLogger, ConsoleLogger]:
@@ -576,9 +581,15 @@ class Trainer:
         return use_cuda, num_gpus
 
     @staticmethod
-    def run_get_model(
-        config: TrainerConfig, get_model: Callable[[TrainerConfig], TrainerModel] | Callable[[], TrainerModel]
-    ) -> TrainerModel:
+    @overload
+    def run_get_model(config: TrainerConfig, get_model: Callable[[TrainerConfig], TrainerModel]) -> TrainerModel: ...
+
+    @staticmethod
+    @overload
+    def run_get_model(config: TrainerConfig, get_model: Callable[[], TrainerModel]) -> TrainerModel: ...
+
+    @staticmethod
+    def run_get_model(config: TrainerConfig, get_model: Callable[..., TrainerModel]) -> TrainerModel:
         """Run the `get_model` function and return the model.
 
         Args:
@@ -590,23 +601,25 @@ class Trainer:
         return get_model(config) if len(signature(get_model).parameters) == 1 else get_model()
 
     @staticmethod
-    def run_get_data_samples(config: TrainerConfig, get_data_samples: Callable) -> tuple[Iterable, Iterable]:
+    def run_get_data_samples(
+        config: TrainerConfig, get_data_samples: Callable[..., list[Any]]
+    ) -> tuple[list[Any] | None, list[Any] | None, list[Any] | None]:
         if callable(get_data_samples):
             if len(signature(get_data_samples).parameters) == 1:
-                train_samples, eval_samples = get_data_samples(config)
+                train_samples, eval_samples, test_samples = get_data_samples(config)
             else:
-                train_samples, eval_samples = get_data_samples()
-            return train_samples, eval_samples
-        return None, None
+                train_samples, eval_samples, test_samples = get_data_samples()
+            return train_samples, eval_samples, test_samples
+        return None, None, None
 
     def restore_model(
         self,
         config: TrainerConfig,
         restore_path: str | os.PathLike[Any],
         model: TrainerModel,
-        optimizer: torch.optim.Optimizer,
+        optimizer: torch.optim.Optimizer | list[torch.optim.Optimizer],
         scaler: Optional["torch.GradScaler"] = None,
-    ) -> tuple[TrainerModel, torch.optim.Optimizer, "torch.GradScaler", int, int]:
+    ) -> tuple[TrainerModel, torch.optim.Optimizer | list[torch.optim.Optimizer], "torch.GradScaler | None", int, int]:
         """Restore training from an old run. It restores model, optimizer, AMP scaler and training stats.
 
         Args:
@@ -620,7 +633,7 @@ class Trainer:
             Tuple[TrainerModel, torch.optim.Optimizer, torch.GradScaler, int, int]: [description]
         """
 
-        def _restore_list_objs(states, obj):
+        def _restore_list_objs(states: Any, obj: Any) -> Any:
             if isinstance(obj, list):
                 for idx, state in enumerate(states):
                     obj[idx].load_state_dict(state)
@@ -661,18 +674,22 @@ class Trainer:
         return model, optimizer, scaler, restore_step, restore_epoch
 
     def restore_lr(
-        self, config: TrainerConfig, args: TrainerArgs, model: TrainerModel, optimizer: torch.optim.Optimizer
-    ) -> torch.optim.Optimizer:
+        self,
+        config: TrainerConfig,
+        args: TrainerArgs,
+        model: TrainerModel,
+        optimizer: torch.optim.Optimizer | list[torch.optim.Optimizer],
+    ) -> torch.optim.Optimizer | list[torch.optim.Optimizer]:
         # use the same lr if continue training
         if not args.continue_path:
             if isinstance(optimizer, list):
                 for idx, optim in enumerate(optimizer):
                     for group in optim.param_groups:
-                        group["lr"] = self.get_lr(model, config)[idx]
+                        group["lr"] = self.get_lr(model, config)[idx]  # type: ignore[index]
             elif isinstance(optimizer, dict):
                 for optim_name, optim in optimizer.items():
                     for group in optim.param_groups:
-                        group["lr"] = self.get_lr(model, config)[optim_name]
+                        group["lr"] = self.get_lr(model, config)[optim_name]  # type: ignore[index]
             else:
                 for group in optimizer.param_groups:
                     group["lr"] = self.get_lr(model, config)
@@ -686,13 +703,13 @@ class Trainer:
         self,
         model: TrainerModel,
         config: TrainerConfig,
-        assets: dict,
-        samples: list,
+        assets: dict[str, Any],
+        samples: list[Any] | None,
         *,
         is_eval: bool,
         verbose: bool,
         num_gpus: int,
-    ) -> DataLoader:
+    ) -> DataLoader[Any]:
         if num_gpus > 1:
             if isimplemented(model.module, "get_data_loader"):
                 loader = model.module.get_data_loader(
@@ -714,7 +731,9 @@ class Trainer:
         ), " ❗ len(DataLoader) returns 0. Make sure your dataset is not empty or len(dataset) > 0. "
         return loader
 
-    def get_train_dataloader(self, training_assets: dict, samples: list, *, verbose: bool) -> DataLoader:
+    def get_train_dataloader(
+        self, training_assets: dict[str, Any], samples: list[Any] | None, *, verbose: bool
+    ) -> DataLoader[Any]:
         """Initialize and return a training data loader.
 
         Call ```model.get_train_data_loader``` if it is implemented, else call ```model.get_data_loader```
@@ -751,7 +770,9 @@ class Trainer:
             num_gpus=self.num_gpus,
         )
 
-    def get_eval_dataloader(self, training_assets: dict, samples: list, *, verbose: bool) -> DataLoader:
+    def get_eval_dataloader(
+        self, training_assets: dict[str, Any], samples: list[Any] | None, *, verbose: bool
+    ) -> DataLoader[Any]:
         """Initialize and return a evaluation data loader.
 
         Call ```model.get_eval_data_loader``` if it is implemented, else call ```model.get_data_loader```
@@ -788,7 +809,9 @@ class Trainer:
             num_gpus=self.num_gpus,
         )
 
-    def get_test_dataloader(self, training_assets: dict, samples: list, *, verbose: bool) -> DataLoader:
+    def get_test_dataloader(
+        self, training_assets: dict[str, Any], samples: list[Any] | None, *, verbose: bool
+    ) -> DataLoader[Any]:
         """Initialize and return a evaluation data loader.
 
         Call ```model.get_test_data_loader``` if it is implemented, else call ```model.get_data_loader```
@@ -825,7 +848,7 @@ class Trainer:
             num_gpus=self.num_gpus,
         )
 
-    def format_batch(self, batch: dict[str, Any] | list) -> dict:
+    def format_batch(self, batch: dict[str, Any] | list[Any]) -> dict[str, Any] | list[Any]:
         """Format the dataloader output and return a batch.
 
         1. Call ```model.format_batch```.
@@ -861,7 +884,7 @@ class Trainer:
     ######################
 
     @staticmethod
-    def master_params(optimizer: torch.optim.Optimizer) -> Generator:
+    def master_params(optimizer: torch.optim.Optimizer) -> Generator[Any]:
         """Generator over parameters owned by the optimizer.
 
         Used to select parameters used by the optimizer for gradient clipping.
@@ -874,9 +897,12 @@ class Trainer:
 
     @staticmethod
     def _model_train_step(
-        batch: dict, model: TrainerModel, criterion: nn.Module, optimizer_idx: int | None = None
-    ) -> tuple[dict, dict]:
-        """Perform a trainig forward step. Compute model outputs and losses.
+        batch: dict[str, Any] | list[Any],
+        model: TrainerModel,
+        criterion: nn.Module | list[nn.Module],
+        optimizer_idx: int | None = None,
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Perform a training forward step. Compute model outputs and losses.
 
         Args:
             batch (Dict): [description]
@@ -885,9 +911,9 @@ class Trainer:
             optimizer_idx (int, optional): [description]. Defaults to None.
 
         Returns:
-            Tuple[Dict, Dict]: [description]
+            Tuple[Dict, Dict]: Model outputs and losses
         """
-        input_args = [batch, criterion]
+        input_args: list[Any] = [batch, criterion]
         if optimizer_idx is not None:
             input_args.append(optimizer_idx)
         # unwrap model in DDP training
@@ -915,12 +941,12 @@ class Trainer:
 
     def detach_loss_dict(
         self,
-        loss_dict: dict,
+        loss_dict: dict[str, Any],
         *,
         step_optimizer: bool,
         optimizer_idx: int | None = None,
-        grad_norm: float | None = None,
-    ):
+        grad_norm: torch.Tensor | float | None = None,
+    ) -> dict[str, Any]:
         # detach losses for logging
         loss_dict_detached = self._detach_loss_dict(loss_dict)
         # loss_dict_detached["loss"] = loss_di`ct_detached["loss"] * float(self.grad_accum_steps)
@@ -935,12 +961,12 @@ class Trainer:
 
     def _compute_loss(
         self,
-        batch: dict,
+        batch: dict[str, Any] | list[Any],
         model: TrainerModel,
-        criterion: nn.Module,
+        criterion: nn.Module | list[nn.Module],
         config: TrainerConfig,
         optimizer_idx: int | None,
-    ) -> tuple[dict, dict]:
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
         device, dtype = self._get_autocast_args(mixed_precision=config.mixed_precision, precision=config.precision)
         with torch.autocast(device_type=device, dtype=dtype, enabled=config.mixed_precision):
             if optimizer_idx is not None:
@@ -952,21 +978,26 @@ class Trainer:
     @staticmethod
     def _set_grad_clip_per_optimizer(config: TrainerConfig, optimizer_idx: int | None) -> float:
         # set gradient clipping threshold
-        grad_clip = 0.0  # meaning no gradient clipping
+        grad_clip: float = 0.0  # meaning no gradient clipping
         if "grad_clip" in config and config.grad_clip is not None:
             if optimizer_idx is not None:
-                try:
+                if isinstance(config.grad_clip, list):
                     grad_clip = config.grad_clip[optimizer_idx]
-                except TypeError:
-                    logger.info(" [!] You are using multiple optimizers but `grad_clip` is not a list.")
+                else:
+                    logger.warning(" [!] You are using multiple optimizers but `grad_clip` is not a list.")
             else:
+                if isinstance(config.grad_clip, list):
+                    msg = "`grad_clip` is a list, but no optimizer_idx specified"
+                    raise ValueError(msg)
                 grad_clip = config.grad_clip
         return grad_clip
 
-    def _compute_grad_norm(self, optimizer: torch.optim.Optimizer):
+    def _compute_grad_norm(self, optimizer: torch.optim.Optimizer) -> torch.Tensor:
         return torch.norm(torch.cat([param.grad.view(-1) for param in self.master_params(optimizer)], dim=0), p=2)
 
-    def _grad_clipping(self, grad_clip: float, optimizer: torch.optim.Optimizer, scaler: Optional["torch.GradScaler"]):
+    def _grad_clipping(
+        self, grad_clip: float, optimizer: torch.optim.Optimizer, scaler: Optional["torch.GradScaler"]
+    ) -> torch.Tensor:
         """Perform gradient clipping."""
         if grad_clip is not None and grad_clip > 0:
             if scaler:
@@ -979,18 +1010,18 @@ class Trainer:
 
     def optimize(
         self,
-        batch: dict,
+        batch: dict[str, Any] | list[Any],
         model: TrainerModel,
         optimizer: torch.optim.Optimizer,
-        scaler: "torch.GradScaler",
-        criterion: nn.Module,
-        scheduler: torch.optim.lr_scheduler._LRScheduler | list | dict,  # pylint: disable=protected-access
+        scaler: "torch.GradScaler | None",
+        criterion: nn.Module | list[nn.Module],
+        scheduler: LRScheduler | None,
         config: TrainerConfig,
         *,
         optimizer_idx: int | None = None,
         step_optimizer: bool = True,
         num_optimizers: int = 1,
-    ) -> tuple[dict, dict, float]:
+    ) -> tuple[dict[str, Any], dict[str, Any], float]:
         """Perform a forward - backward pass and run the optimizer.
 
         Args:
@@ -999,7 +1030,7 @@ class Trainer:
             optimizer (Union[nn.optim.Optimizer, List]): Model's optimizer. If it is a list then, `optimizer_idx` must be defined to indicate the optimizer in use.
             scaler (AMPScaler): AMP scaler.
             criterion (nn.Module): Model's criterion.
-            scheduler (torch.optim.lr_scheduler._LRScheduler): LR scheduler used by the optimizer.
+            scheduler (LRScheduler): LR scheduler used by the optimizer.
             config (TrainerConfig): Model config.
             optimizer_idx (int, optional): Target optimizer being used. Defaults to None.
             step_optimizer (bool, optional): Whether step the optimizer. If False, gradients are accumulated and
@@ -1026,7 +1057,7 @@ class Trainer:
 
         grad_clip = self._set_grad_clip_per_optimizer(config=config, optimizer_idx=optimizer_idx)
         # optimizer step
-        grad_norm = 0
+        grad_norm: float | torch.Tensor = 0.0
         update_lr_scheduler = True
 
         # callback
@@ -1044,11 +1075,15 @@ class Trainer:
                     if self.accelerator.sync_gradients and grad_clip is not None and grad_clip > 0:
                         self.accelerator.clip_grad_norm_(model.parameters(), grad_clip)
                     optimizer.step()
-                    if not self.config.scheduler_after_epoch and not self.accelerator.optimizer_step_was_skipped:
+                    if (
+                        scheduler is not None
+                        and not self.config.scheduler_after_epoch
+                        and not self.accelerator.optimizer_step_was_skipped
+                    ):
                         scheduler.step()
                     optimizer.zero_grad(set_to_none=True)
         else:
-            if self.use_amp_scaler:
+            if self.use_amp_scaler and scaler is not None:
                 if self.use_apex:
                     # TODO: verify AMP use for GAN training in TTS
                     # https://nvidia.github.io/apex/advanced.html?highlight=accumulate#backward-passes-with-multiple-optimizers
@@ -1104,7 +1139,9 @@ class Trainer:
         )
         return outputs, loss_dict_detached, step_time
 
-    def train_step(self, batch: dict, batch_n_steps: int, step: int, loader_start_time: float) -> tuple[dict, dict]:
+    def train_step(
+        self, batch: dict[str, Any] | list[Any], batch_n_steps: int, step: int, loader_start_time: float
+    ) -> tuple[dict[str, Any] | list[dict[str, Any]] | None, dict[str, Any] | None]:
         """Perform a training step on a batch of inputs and log the process.
 
         Args:
@@ -1121,8 +1158,8 @@ class Trainer:
         batch = self.format_batch(batch)
         loader_time = time.time() - loader_start_time
 
-        # conteainers to hold model outputs and losses for each optimizer.
-        outputs_per_optimizer = None
+        # containers to hold model outputs and losses for each optimizer.
+        outputs: dict[str, Any] | list[dict[str, Any]]
         loss_dict = {}
 
         # OPTIMIZATION
@@ -1133,10 +1170,7 @@ class Trainer:
                 mixed_precision=self.config.mixed_precision, precision=self.config.precision
             )
             with torch.autocast(device_type=device, dtype=dtype, enabled=self.config.mixed_precision):
-                outputs, loss_dict_new = self.model.optimize(
-                    batch,
-                    self,
-                )
+                outputs, loss_dict_new = self.model.optimize(batch, self)
             step_time = time.time() - step_time
             # If None, skip the step
             if outputs is None:
@@ -1152,6 +1186,9 @@ class Trainer:
                 step_optimizer = False
 
             if not isinstance(self.optimizer, list):
+                if isinstance(self.scheduler, dict | list):
+                    msg = "Can't use dict or list of schedulers with a single optimizer."
+                    raise TypeError(msg)
                 # auto training with a single optimizer
                 outputs, loss_dict_new, step_time = self.optimize(
                     batch,
@@ -1167,16 +1204,16 @@ class Trainer:
                 loss_dict.update(loss_dict_new)
             else:
                 # auto training with multiple optimizers (e.g. GAN)
-                outputs_per_optimizer = [None] * len(self.optimizer)
+                outputs_per_optimizer = []
                 total_step_time = 0.0
                 for idx, optimizer in enumerate(self.optimizer):
                     criterion = self.criterion
                     # scaler = self.scaler[idx] if self.use_amp_scaler else None
                     scaler = self.scaler
                     scheduler = None
-                    if self.scheduler is not None:
+                    if self.scheduler is not None and isinstance(self.scheduler, list):
                         scheduler = self.scheduler[idx]
-                    outputs, loss_dict_new, step_time = self.optimize(
+                    optimizer_outputs, loss_dict_new, step_time = self.optimize(
                         batch,
                         self.model,
                         optimizer,
@@ -1190,7 +1227,7 @@ class Trainer:
                     )
                     # skip the rest if the model returns None
                     total_step_time += step_time
-                    outputs_per_optimizer[idx] = outputs
+                    outputs_per_optimizer.append(optimizer_outputs)
                     # merge loss_dicts from each optimizer
                     # rename duplicates with the optimizer idx
                     # if None, model skipped this optimizer
@@ -1208,17 +1245,18 @@ class Trainer:
                 if step_optimizer:
                     self.model.zero_grad(set_to_none=True)
 
-        # update avg runtime stats
-        keep_avg_update = {}
-        keep_avg_update["avg_loader_time"] = loader_time
-        keep_avg_update["avg_step_time"] = step_time
-        self.keep_avg_train.update_values(keep_avg_update)
+        if self.keep_avg_train is not None:
+            # update avg runtime stats
+            keep_avg_update = {}
+            keep_avg_update["avg_loader_time"] = loader_time
+            keep_avg_update["avg_step_time"] = step_time
+            self.keep_avg_train.update_values(keep_avg_update)
 
-        # update avg loss stats
-        update_eval_values = {}
-        for key, value in loss_dict.items():
-            update_eval_values["avg_" + key] = value
-        self.keep_avg_train.update_values(update_eval_values)
+            # update avg loss stats
+            update_eval_values = {}
+            for key, value in loss_dict.items():
+                update_eval_values["avg_" + key] = value
+            self.keep_avg_train.update_values(update_eval_values)
 
         # print training progress
         if self.total_steps_done % self.config.print_step == 0:
@@ -1249,7 +1287,7 @@ class Trainer:
                 step,
                 self.total_steps_done,
                 loss_dict,
-                self.keep_avg_train.avg_values,
+                self.keep_avg_train.avg_values if self.keep_avg_train is not None else {},
             )
 
         if self.args.rank == 0:
@@ -1264,7 +1302,7 @@ class Trainer:
             ):
                 self.save_checkpoint()
 
-            if self.total_steps_done % self.config.log_model_step == 0:
+            if self.total_steps_done % self.log_model_step == 0:
                 # log checkpoint as artifact
                 self.update_training_dashboard_logger(batch=batch, outputs=outputs)
 
@@ -1333,7 +1371,8 @@ class Trainer:
         # plot self.epochs_done Stats
         if self.args.rank == 0:
             epoch_stats = {"epoch_time": epoch_time}
-            epoch_stats.update(self.keep_avg_train.avg_values)
+            if self.keep_avg_train is not None:
+                epoch_stats.update(self.keep_avg_train.avg_values)
             self.dashboard_logger.train_epoch_stats(self.total_steps_done, epoch_stats)
             if self.config.model_param_stats:
                 self.dashboard_logger.model_weights(self.model, self.total_steps_done)
@@ -1344,8 +1383,12 @@ class Trainer:
     #######################
 
     def _model_eval_step(
-        self, batch: dict, model: TrainerModel, criterion: nn.Module, optimizer_idx: int | None = None
-    ) -> tuple[dict, dict]:
+        self,
+        batch: dict[str, Any],
+        model: TrainerModel,
+        criterion: nn.Module | list[nn.Module],
+        optimizer_idx: int | None = None,
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
         """Perform a evaluation forward pass. Compute model outputs and losses with no gradients.
 
         Args:
@@ -1357,7 +1400,7 @@ class Trainer:
         Returns:
             Tuple[Dict, Dict]: model outputs and losses.
         """
-        input_args = [batch, criterion]
+        input_args: list[Any] = [batch, criterion]
 
         if isimplemented(model, "optimize"):
             if hasattr(model, "module"):
@@ -1371,7 +1414,9 @@ class Trainer:
 
         return model.eval_step(*input_args)
 
-    def eval_step(self, batch: dict, step: int) -> tuple[dict | None, dict | None]:
+    def eval_step(
+        self, batch: dict[str, Any], step: int
+    ) -> tuple[dict[str, Any] | list[dict[str, Any]] | None, dict[str, Any] | None]:
         """Perform a evaluation step on a batch of inputs and log the process.
 
         Args:
@@ -1381,36 +1426,40 @@ class Trainer:
         Returns:
             Tuple[Dict, Dict]: Model outputs and losses.
         """
+        outputs: dict[str, Any] | list[dict[str, Any]]
         with torch.no_grad():
-            outputs = []
             loss_dict: dict[str, Any] = {}
             if not isinstance(self.optimizer, list) or isimplemented(self.model, "optimize"):
                 outputs, loss_dict = self._model_eval_step(batch, self.model, self.criterion)
                 if outputs is None:
                     return None, None
             else:
-                outputs = [None] * len(self.optimizer)
+                optimizer_outputs = []
                 for idx, _ in enumerate(self.optimizer):
                     criterion = self.criterion
                     outputs_, loss_dict_new = self._model_eval_step(batch, self.model, criterion, idx)
                     if outputs_ is None:
                         return None, None
-                    outputs[idx] = outputs_
+                    optimizer_outputs.append(outputs_)
 
                     if loss_dict_new:
                         loss_dict_new[f"loss_{idx}"] = loss_dict_new.pop("loss")
                         loss_dict.update(loss_dict_new)
+                outputs = optimizer_outputs
 
             loss_dict = self._detach_loss_dict(loss_dict)
 
             # update avg stats
-            update_eval_values = {}
-            for key, value in loss_dict.items():
-                update_eval_values["avg_" + key] = value
-            self.keep_avg_eval.update_values(update_eval_values)
+            if self.keep_avg_eval is not None:
+                update_eval_values = {}
+                for key, value in loss_dict.items():
+                    update_eval_values["avg_" + key] = value
+                self.keep_avg_eval.update_values(update_eval_values)
 
             if self.config.print_eval:
-                self.c_logger.print_eval_step(step, loss_dict, self.keep_avg_eval.avg_values)
+                self.c_logger.print_eval_step(
+                    step, loss_dict, self.keep_avg_eval.avg_values if self.keep_avg_eval is not None else {}
+                )
 
         return outputs, loss_dict
 
@@ -1436,7 +1485,7 @@ class Trainer:
         loader_start_time = time.time()
         batch = None
         outputs = None
-        for cur_step, batch in enumerate(self.eval_loader):
+        for cur_step, batch in enumerate(self.eval_loader):  # type: ignore[arg-type]
             # format data
             batch = self.format_batch(batch)
             loader_time = time.time() - loader_start_time
@@ -1524,11 +1573,11 @@ class Trainer:
             ch = load_fsspec(self.args.restore_path, map_location="cpu")
             if "model_loss" in ch:
                 if isinstance(ch["model_loss"], dict):
-                    self.best_loss = ch["model_loss"]
+                    self.best_loss = cast(LossDict, ch["model_loss"])
                 # For backwards-compatibility:
                 elif isinstance(ch["model_loss"], float):
                     if self.config.run_eval:
-                        self.best_loss = {"train_loss": None, "eval_loss": ch["model_loss"]}
+                        self.best_loss = {"train_loss": float("inf"), "eval_loss": ch["model_loss"]}
                     else:
                         self.best_loss = {"train_loss": ch["model_loss"], "eval_loss": None}
             logger.info(" > Starting with loaded last best loss %s", self.best_loss)
@@ -1590,7 +1639,7 @@ class Trainer:
 
             self.c_logger.print_epoch_end(
                 epoch,
-                self.keep_avg_eval.avg_values if self.config.run_eval else self.keep_avg_train.avg_values,
+                self.keep_avg_eval.avg_values if self.config.run_eval else self.keep_avg_train.avg_values,  # type: ignore[union-attr]
             )
             if self.args.rank in [None, 0]:
                 self.save_best_model()
@@ -1661,7 +1710,9 @@ class Trainer:
             traceback.print_exc()
             sys.exit(1)
 
-    def profile_fit(self, torch_profiler, epochs: int | None = None, small_run: int | None = None):
+    def profile_fit(
+        self, torch_profiler: torch.profiler.profile, epochs: int | None = None, small_run: int | None = None
+    ) -> torch.profiler.profile:
         """Run training under the torch profiler.
 
         Example::
@@ -1708,7 +1759,7 @@ class Trainer:
     def save_best_model(self) -> None:
         """Save the best model. It only saves if the current target loss is smaller then the previous."""
         eval_loss = self._pick_target_avg_loss(self.keep_avg_eval)
-        train_loss = self._pick_target_avg_loss(self.keep_avg_train)
+        train_loss = self._pick_target_avg_loss(self.keep_avg_train) or float("inf")
 
         # save the model and update the best_loss
         self.best_loss = save_best_model(
@@ -1746,7 +1797,9 @@ class Trainer:
         )
 
     @rank_zero_only
-    def update_training_dashboard_logger(self, batch=None, outputs=None) -> None:
+    def update_training_dashboard_logger(
+        self, batch: dict[str, Any] | list[Any] | None = None, outputs: dict[str, Any] | None = None
+    ) -> None:
         aliases = [
             f"epoch-{self.epochs_done}",
             f"step-{self.total_steps_done}",
@@ -1779,7 +1832,9 @@ class Trainer:
     #####################
 
     @staticmethod
-    def get_optimizer(model: TrainerModel, config: TrainerConfig) -> torch.optim.Optimizer | list:
+    def get_optimizer(
+        model: TrainerModel, config: TrainerConfig
+    ) -> torch.optim.Optimizer | list[torch.optim.Optimizer]:
         """Return the optimizer.
 
         From the model if model implements `get_optimizer()` else
@@ -1799,13 +1854,22 @@ class Trainer:
             except NotImplementedError:
                 optimizer = None
         if optimizer is None:
+            if isinstance(config.optimizer, list):
+                optimizers = []
+                for i, optimizer_name in enumerate(config.optimizer):
+                    optimizer_params = {} if config.optimizer_params is None else config.optimizer_params[i]  # type: ignore[index]
+                    optimizers.append(get_optimizer(optimizer_name, optimizer_params, config.lr, model))  # type: ignore[arg-type]
+                return optimizers
+            if config.optimizer is None:
+                msg = "No name specified in `optimizer`"
+                raise ValueError(msg)
             optimizer_name = config.optimizer
             optimizer_params = {} if config.optimizer_params is None else config.optimizer_params
-            return get_optimizer(optimizer_name, optimizer_params, config.lr, model)
+            return get_optimizer(optimizer_name, optimizer_params, config.lr, model)  # type: ignore[arg-type]
         return optimizer
 
     @staticmethod
-    def get_lr(model: TrainerModel, config: TrainerConfig) -> float | list[float]:
+    def get_lr(model: TrainerModel, config: TrainerConfig) -> float | list[float] | dict[str, float]:
         """Set the initial learning rate.
 
         According to the model if model implements `get_lr()` else try setting
@@ -1830,8 +1894,10 @@ class Trainer:
 
     @staticmethod
     def get_scheduler(
-        model: TrainerModel, config: TrainerConfig, optimizer: torch.optim.Optimizer | list | dict
-    ) -> torch.optim.lr_scheduler._LRScheduler | list:  # pylint: disable=protected-access
+        model: TrainerModel,
+        config: TrainerConfig,
+        optimizer: torch.optim.Optimizer | list[torch.optim.Optimizer] | dict[str, torch.optim.Optimizer],
+    ) -> LRScheduler | list[LRScheduler] | dict[str, LRScheduler] | None:
         """Return the scheduler.
 
         From the model if model implements `get_scheduler()` else
@@ -1858,17 +1924,17 @@ class Trainer:
         if scheduler is None:
             lr_scheduler = config.lr_scheduler
             lr_scheduler_params = config.lr_scheduler_params
-            return get_scheduler(lr_scheduler, lr_scheduler_params, optimizer)
+            return get_scheduler(lr_scheduler, lr_scheduler_params, optimizer)  # type: ignore[arg-type]
         return scheduler
 
     @staticmethod
     def restore_scheduler(
-        scheduler: torch.optim.lr_scheduler._LRScheduler | list | dict,
+        scheduler: LRScheduler | list[LRScheduler] | dict[str, LRScheduler] | None,
         args: TrainerArgs,
         config: TrainerConfig,
         restore_epoch: int,
         restore_step: int,
-    ) -> torch.optim.lr_scheduler._LRScheduler | list:
+    ) -> LRScheduler | list[LRScheduler] | dict[str, LRScheduler] | None:
         """Restore scheduler wrt restored model."""
         if scheduler is not None and args.continue_path:
             if isinstance(scheduler, list):
@@ -1892,7 +1958,7 @@ class Trainer:
         return scheduler
 
     @staticmethod
-    def get_criterion(model: TrainerModel) -> nn.Module:
+    def get_criterion(model: TrainerModel) -> nn.Module | list[nn.Module]:
         """Receive the criterion from the model. Model must implement `get_criterion()`.
 
         Args:
@@ -1908,7 +1974,7 @@ class Trainer:
     ####################
 
     @staticmethod
-    def _detach_loss_dict(loss_dict: dict) -> dict:
+    def _detach_loss_dict(loss_dict: dict[str, Any]) -> dict[str, Any]:
         """Detach loss values from autograp.
 
         Args:
@@ -1925,13 +1991,12 @@ class Trainer:
                 loss_dict_detached[key] = value.detach().cpu().item()
         return loss_dict_detached
 
-    def _pick_target_avg_loss(self, keep_avg_target: KeepAverage | None) -> dict | None:
+    def _pick_target_avg_loss(self, keep_avg_target: KeepAverage | None) -> float | None:
         """Pick the target loss to compare models."""
         # if the keep_avg_target is None or empty return None
         if keep_avg_target is None or len(list(keep_avg_target.avg_values.keys())) == 0:
             return None
 
-        target_avg_loss = None
         # return if target loss defined in the model config
         # if not available in Dict use loss_1 as by default loss
         if "target_loss" in self.config and self.config.target_loss:
@@ -1943,7 +2008,7 @@ class Trainer:
 
         # take the average of loss_{optimizer_idx} as the target loss when there are multiple optimizers
         if isinstance(self.optimizer, list):
-            target_avg_loss = 0
+            target_avg_loss = 0.0
             for idx in range(len(self.optimizer)):
                 if f"avg_loss_{idx}" in keep_avg_target.avg_values:
                     target_avg_loss += keep_avg_target[f"avg_loss_{idx}"]

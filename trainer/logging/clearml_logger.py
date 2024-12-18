@@ -32,8 +32,8 @@ class ClearMLLogger(TensorboardLogger):
 
     def __init__(
         self,
-        output_uri: str,
-        local_path: str,
+        output_uri: str | os.PathLike[Any],
+        local_path: str | os.PathLike[Any],
         project_name: str,
         task_name: str,
         tags: str | None = None,
@@ -48,7 +48,7 @@ class ClearMLLogger(TensorboardLogger):
             for tag in tags.split(","):
                 self.run.add_tag(tag)
 
-        super().__init__("run", None)
+        super().__init__("run", f"{project_name}@{task_name}")
 
     @rank_zero_only
     def add_config(self, config):

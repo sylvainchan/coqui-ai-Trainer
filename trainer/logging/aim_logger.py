@@ -1,3 +1,6 @@
+import os
+from typing import Any
+
 import torch
 
 from trainer.logging.base_dash_logger import BaseDashboardLogger
@@ -13,7 +16,7 @@ if is_aim_available():
 class AimLogger(BaseDashboardLogger):
     def __init__(
         self,
-        repo: str,
+        repo: str | os.PathLike[Any],
         model_name: str,
         tags: str | None = None,
     ) -> None:

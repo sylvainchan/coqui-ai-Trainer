@@ -49,7 +49,7 @@ class DistributedSamplerWrapper(DistributedSampler):
         )
 
     def __iter__(self) -> Iterator:
-        indices = list(self.dataset)[: self.total_size]
+        indices = list(self.dataset)[: self.total_size]  # type: ignore[call-overload]
 
         # Add extra samples to make it evenly divisible
         indices += indices[: (self.total_size - len(indices))]
@@ -70,10 +70,10 @@ class DistributedSamplerWrapper(DistributedSampler):
             self.dataset.generator = torch.Generator().manual_seed(self.seed + epoch)
 
     def state_dict(self) -> dict:
-        return self.dataset.state_dict()
+        return self.dataset.state_dict()  # type: ignore[attr-defined]
 
     def load_state_dict(self, state_dict: dict) -> None:
-        self.dataset.load_state_dict(state_dict)
+        self.dataset.load_state_dict(state_dict)  # type: ignore[attr-defined]
 
 
 # pylint: disable=protected-access

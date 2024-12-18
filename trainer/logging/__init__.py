@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Union
+from typing import Any, Union
 
 from trainer.config import TrainerConfig
 from trainer.logging.base_dash_logger import BaseDashboardLogger
@@ -25,7 +25,7 @@ def get_ai_repo_url() -> str | None:
     return None
 
 
-def logger_factory(config: TrainerConfig, output_path: str) -> BaseDashboardLogger:
+def logger_factory(config: TrainerConfig, output_path: str | os.PathLike[Any]) -> BaseDashboardLogger:
     run_name = config.run_name
     project_name = config.project_name
     log_uri = config.logger_uri if config.logger_uri else output_path
@@ -52,18 +52,21 @@ def logger_factory(config: TrainerConfig, output_path: str) -> BaseDashboardLogg
     elif config.dashboard_logger == "mlflow":
         from trainer.logging.mlflow_logger import MLFlowLogger
 
-        dashboard_logger = MLFlowLogger(log_uri=log_uri, model_name=project_name)
+        dashboard_logger = MLFlowLogger(log_uri=log_uri, model_name=project_name)  # type: ignore[arg-type]
 
     elif config.dashboard_logger == "aim":
         from trainer.logging.aim_logger import AimLogger
 
-        dashboard_logger = AimLogger(repo=log_uri, model_name=project_name)
+        dashboard_logger = AimLogger(repo=log_uri, model_name=project_name)  # type: ignore[arg-type]
 
     elif config.dashboard_logger == "clearml":
         from trainer.logging.clearml_logger import ClearMLLogger
 
         dashboard_logger = ClearMLLogger(
-            output_uri=log_uri, local_path=output_path, project_name=project_name, task_name=run_name
+            output_uri=log_uri,
+            local_path=output_path,
+            project_name=project_name,  # type: ignore[arg-type]
+            task_name=run_name,
         )
 
     else:
