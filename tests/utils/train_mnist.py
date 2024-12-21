@@ -1,5 +1,4 @@
-from mnist import MnistModel, MnistModelConfig
-
+from tests.utils.mnist import MnistModel, MnistModelConfig
 from trainer import Trainer, TrainerArgs
 
 
