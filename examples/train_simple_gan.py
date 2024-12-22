@@ -124,7 +124,7 @@ class GANModel(TrainerModel):
             trainer.optimizer[1].zero_grad()
         return {"model_outputs": logits}, {"loss_gen": loss_gen, "loss_disc": loss_disc}
 
-    @torch.no_grad()
+    @torch.inference_mode()
     def eval_step(self, batch, criterion):
         imgs, _ = batch
 

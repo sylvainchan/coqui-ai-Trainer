@@ -1323,7 +1323,6 @@ class Trainer:
             )
             self.train_loader = self.prepare_accelerate_loader(self.train_loader)
         # set model to training mode
-        torch.set_grad_enabled(True)
         if self.num_gpus > 1:
             self.model.module.train()
         else:
@@ -1351,7 +1350,6 @@ class Trainer:
                     self.model.module.train()
                 else:
                     self.model.train()
-                torch.set_grad_enabled(True)
 
         epoch_time = time.time() - epoch_start_time
         self.callbacks.on_train_epoch_end(self)
@@ -1427,7 +1425,7 @@ class Trainer:
             Tuple[Dict, Dict]: Model outputs and losses.
         """
         outputs: dict[str, Any] | list[dict[str, Any]]
-        with torch.no_grad():
+        with torch.inference_mode():
             loss_dict: dict[str, Any] = {}
             if not isinstance(self.optimizer, list) or isimplemented(self.model, "optimize"):
                 outputs, loss_dict = self._model_eval_step(batch, self.model, self.criterion)
@@ -1463,6 +1461,7 @@ class Trainer:
 
         return outputs, loss_dict
 
+    @torch.inference_mode()
     def eval_epoch(self) -> None:
         """Main entry point for the evaluation loop. Run evaluation on the all validation samples."""
         # initialize it when eval_epoch is called alone.
@@ -1479,7 +1478,6 @@ class Trainer:
                 else None
             )
 
-        torch.set_grad_enabled(False)
         self.model.eval()
         self.c_logger.print_eval_start()
         loader_start_time = time.time()

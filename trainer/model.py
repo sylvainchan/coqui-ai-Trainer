@@ -90,7 +90,7 @@ class TrainerModel(ABC, nn.Module):
         msg = " [!] `train_log()` is not implemented."
         raise NotImplementedError(msg)
 
-    @torch.no_grad()
+    @torch.inference_mode()
     def eval_step(self, *args: Any, **kwargs: Any) -> tuple[dict[str, Any], dict[str, Any]]:
         """Perform a single evaluation step.
 
