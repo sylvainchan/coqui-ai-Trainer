@@ -75,7 +75,7 @@ dev = [
     "coverage>=7",
     "pre-commit>=3",
     "pytest>=8",
-    "ruff==0.8.3",
+    "ruff==0.8.6",
 ]
 test = [
     "accelerate>=0.20.0",
@@ -84,7 +84,7 @@ test = [
 mypy = [
     "matplotlib>=3.9.2",
     "mlflow>=2.18.0",
-    "mypy>=1.13.0",
+    "mypy>=1.14.1",
     "types-psutil>=6.1.0.20241102",
     "wandb>=0.18.7",
 ]
@@ -157,6 +157,15 @@ skip_empty = true
 [tool.coverage.run]
 source = ["trainer", "tests"]
 command_line = "-m pytest"
+
+[tool.mypy]
+warn_unused_configs = true
+disallow_subclassing_any = true
+disallow_untyped_decorators = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+strict_equality = true
+extra_checks = true
 
 [[tool.mypy.overrides]]
 module = [

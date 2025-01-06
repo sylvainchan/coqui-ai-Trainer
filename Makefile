@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: test dev-deps deps style lint install help
+.PHONY: test dev-deps deps style lint mypy install help
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
@@ -21,6 +21,9 @@ style:	## update code style.
 lint:	## run linter.
 	uv run --only-dev ruff check ${target_dirs}
 	uv run --only-dev ruff format --check ${target_dirs}
+
+mypy:	## run type checker.
+	uv run --group mypy mypy trainer
 
 install:	## install 🐸 Trainer for development.
 	uv sync --all-extras
