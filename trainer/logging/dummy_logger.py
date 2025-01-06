@@ -1,55 +1,56 @@
-from typing import TYPE_CHECKING, Union
+import os
+from typing import TYPE_CHECKING, Any
 
+from trainer._types import Audio, Figure
+from trainer.config import TrainerConfig
 from trainer.logging.base_dash_logger import BaseDashboardLogger
 
 if TYPE_CHECKING:
-    import matplotlib
-    import numpy as np
-    import plotly
+    import torch
 
 
 class DummyLogger(BaseDashboardLogger):
     """DummyLogger that implements the API but does nothing."""
 
+    def model_weights(self, model: "torch.nn.Module", step: int) -> None:
+        pass
+
     def add_scalar(self, title: str, value: float, step: int) -> None:
         pass
 
-    def add_figure(
-        self,
-        title: str,
-        figure: Union["matplotlib.figure.Figure", "plotly.graph_objects.Figure"],
-        step: int,
-    ) -> None:
+    def add_figure(self, title: str, figure: Figure, step: int) -> None:
         pass
 
-    def add_config(self, config):
+    def add_config(self, config: TrainerConfig) -> None:
         pass
 
-    def add_audio(self, title: str, audio: "np.ndarray", step: int, sample_rate: int) -> None:
+    def add_audio(self, title: str, audio: Audio, step: int, sample_rate: int) -> None:
         pass
 
     def add_text(self, title: str, text: str, step: int) -> None:
         pass
 
-    def add_artifact(self, file_or_dir: str, name: str, artifact_type: str, aliases=None):
+    def add_artifact(
+        self, file_or_dir: str | os.PathLike[Any], name: str, artifact_type: str, aliases: list[str] | None = None
+    ) -> None:
         pass
 
-    def add_scalars(self, scope_name: str, scalars: dict, step: int):
+    def add_scalars(self, scope_name: str, scalars: dict[str, float], step: int) -> None:
         pass
 
-    def add_figures(self, scope_name: str, figures: dict, step: int):
+    def add_figures(self, scope_name: str, figures: dict[str, Figure], step: int) -> None:
         pass
 
-    def add_audios(self, scope_name: str, audios: dict, step: int, sample_rate: int):
+    def add_audios(self, scope_name: str, audios: dict[str, Audio], step: int, sample_rate: int) -> None:
         pass
 
-    def flush(self):
+    def flush(self) -> None:
         pass
 
-    def finish(self):
+    def finish(self) -> None:
         pass
 
-    def train_step_stats(self, step, stats):
+    def train_step_stats(self, step: int, stats: dict[str, float]) -> None:
         self.add_scalars(scope_name="TrainIterStats", scalars=stats, step=step)
 
     def train_epoch_stats(self, step, stats):

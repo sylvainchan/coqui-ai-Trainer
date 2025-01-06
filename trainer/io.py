@@ -3,15 +3,18 @@ import json
 import os
 import re
 import sys
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Optional, Union
+from typing import Any
 from urllib.parse import urlparse
 
 import fsspec
 import torch
 from coqpit import Coqpit
+from torch.optim.optimizer import StateDict
 from torch.types import Storage
 
+from trainer._types import LossDict
 from trainer.generic_utils import is_pytorch_at_least_2_4
 from trainer.logger import logger
 
@@ -42,7 +45,7 @@ def get_user_data_dir(appname: str) -> Path:
     return ans.joinpath(appname)
 
 
-def copy_model_files(config: Coqpit, out_path: Union[str, os.PathLike[Any]], new_fields: dict) -> None:
+def copy_model_files(config: Coqpit, out_path: str | os.PathLike[Any], new_fields: dict[str, Any]) -> None:
     """Copy config.json and other model files to training folder and add new fields.
 
     Args:
@@ -60,11 +63,11 @@ def copy_model_files(config: Coqpit, out_path: Union[str, os.PathLike[Any]], new
 
 
 def load_fsspec(
-    path: Union[str, os.PathLike[Any]],
-    map_location: Optional[Union[str, Callable[[Storage, str], Storage], torch.device, dict[str, str]]] = None,
+    path: str | os.PathLike[Any],
+    map_location: str | Callable[[Storage, str], Storage] | torch.device | dict[str, str] | None = None,
     *,
     cache: bool = True,
-    **kwargs,
+    **kwargs: Any,
 ) -> Any:
     """Like torch.load but can load from other locations (e.g. s3:// , gs://).
 
@@ -92,7 +95,7 @@ def load_fsspec(
 
 def load_checkpoint(
     model: torch.nn.Module,
-    checkpoint_path: Union[str, os.PathLike[Any]],
+    checkpoint_path: str | os.PathLike[Any],
     *,
     use_cuda: bool = False,
     eval: bool = False,
@@ -107,7 +110,7 @@ def load_checkpoint(
     return model, state
 
 
-def save_fsspec(state: Any, path: Union[str, os.PathLike[Any]], **kwargs) -> None:
+def save_fsspec(state: Any, path: str | os.PathLike[Any], **kwargs: Any) -> None:
     """Like torch.save but can save to other locations (e.g. s3:// , gs://).
 
     Args:
@@ -120,17 +123,18 @@ def save_fsspec(state: Any, path: Union[str, os.PathLike[Any]], **kwargs) -> Non
 
 
 def save_model(
-    config: Union[dict, Coqpit],
+    config: dict[str, Any] | Coqpit,
     model: torch.nn.Module,
-    optimizer: torch.optim.Optimizer,
-    scaler,
+    optimizer: torch.optim.Optimizer | list[torch.optim.Optimizer],
+    scaler: "torch.GradScaler | None",
     current_step: int,
     epoch: int,
-    output_path: Union[str, os.PathLike[Any]],
-    save_func: Optional[Callable] = None,
-    **kwargs,
+    output_path: str | os.PathLike[Any],
+    save_func: Callable[[Any, str | os.PathLike[Any]], None] | None = None,
+    **kwargs: Any,
 ) -> None:
     model_state = model.module.state_dict() if hasattr(model, "module") else model.state_dict()
+    optimizer_state: StateDict | list[StateDict] | None
     if isinstance(optimizer, list):
         optimizer_state = [optim.state_dict() for optim in optimizer]
     elif isinstance(optimizer, dict):
@@ -138,6 +142,7 @@ def save_model(
     else:
         optimizer_state = optimizer.state_dict() if optimizer is not None else None
 
+    scaler_state: StateDict | list[StateDict] | None
     if isinstance(scaler, list):
         scaler_state = [s.state_dict() for s in scaler]
     else:
@@ -163,17 +168,17 @@ def save_model(
 
 
 def save_checkpoint(
-    config: Union[dict, Coqpit],
+    config: dict[str, Any] | Coqpit,
     model: torch.nn.Module,
-    optimizer: torch.optim.Optimizer,
-    scaler,
+    optimizer: torch.optim.Optimizer | list[torch.optim.Optimizer],
+    scaler: "torch.GradScaler | None",
     current_step: int,
     epoch: int,
-    output_folder: Union[str, os.PathLike[Any]],
-    save_n_checkpoints: Optional[int] = None,
-    save_func: Optional[Callable] = None,
-    **kwargs,
-):
+    output_folder: str | os.PathLike[Any],
+    save_n_checkpoints: int | None = None,
+    save_func: Callable[[Any, str | os.PathLike[Any]], None] | None = None,
+    **kwargs: Any,
+) -> None:
     file_name = f"checkpoint_{current_step}.pth"
     checkpoint_path = os.path.join(output_folder, file_name)
 
@@ -194,26 +199,26 @@ def save_checkpoint(
 
 
 def save_best_model(
-    current_loss: Union[dict, float],
-    best_loss: Union[dict[str, Optional[float]], float],
-    config: Union[dict, Coqpit],
+    current_loss: LossDict | float,
+    best_loss: LossDict | float,
+    config: dict[str, Any] | Coqpit,
     model: torch.nn.Module,
-    optimizer: torch.optim.Optimizer,
-    scaler,
+    optimizer: torch.optim.Optimizer | list[torch.optim.Optimizer],
+    scaler: "torch.GradScaler | None",
     current_step: int,
     epoch: int,
-    out_path: Union[str, os.PathLike[Any]],
+    out_path: str | os.PathLike[Any],
     *,
     keep_all_best: bool = False,
     keep_after: int = 0,
-    save_func: Optional[Callable] = None,
-    **kwargs,
-) -> Union[dict, float]:
+    save_func: Callable[[Any, str | os.PathLike[Any]], None] | None = None,
+    **kwargs: Any,
+) -> LossDict | float:
     if isinstance(current_loss, dict) and isinstance(best_loss, dict):
-        use_eval_loss = current_loss["eval_loss"] is not None and best_loss["eval_loss"] is not None
-        is_save_model = (use_eval_loss and current_loss["eval_loss"] < best_loss["eval_loss"]) or (
-            not use_eval_loss and current_loss["train_loss"] < best_loss["train_loss"]
-        )
+        if current_loss["eval_loss"] is not None and best_loss["eval_loss"] is not None:
+            is_save_model = current_loss["eval_loss"] < best_loss["eval_loss"]
+        else:
+            is_save_model = current_loss["train_loss"] < best_loss["train_loss"]
     else:
         assert isinstance(current_loss, float) and isinstance(best_loss, float)
         is_save_model = current_loss < best_loss
@@ -251,7 +256,7 @@ def save_best_model(
     return best_loss
 
 
-def get_last_checkpoint(path: Union[str, os.PathLike[Any]]) -> tuple[str, str]:
+def get_last_checkpoint(path: str | os.PathLike[Any]) -> tuple[str, str]:
     """Get latest checkpoint or/and best model in path.
 
     It is based on globbing for `*.pth` and the RegEx
@@ -298,7 +303,7 @@ def get_last_checkpoint(path: Union[str, os.PathLike[Any]]) -> tuple[str, str]:
             last_model = max(key_file_names, key=os.path.getctime)
             last_model_num = load_fsspec(last_model)["step"]
 
-        if last_model is not None:
+        if last_model is not None and last_model_num is not None:
             last_models[key] = last_model
             last_model_nums[key] = last_model_num
 
@@ -318,7 +323,7 @@ def get_last_checkpoint(path: Union[str, os.PathLike[Any]]) -> tuple[str, str]:
     return last_models["checkpoint"], last_models["best_model"]
 
 
-def keep_n_checkpoints(path: Union[str, os.PathLike[Any]], n: int) -> None:
+def keep_n_checkpoints(path: str | os.PathLike[Any], n: int) -> None:
     """Keep only the last n checkpoints in path.
 
     Args:
@@ -333,7 +338,7 @@ def keep_n_checkpoints(path: Union[str, os.PathLike[Any]], n: int) -> None:
 
 
 def sort_checkpoints(
-    output_path: Union[str, os.PathLike[Any]], checkpoint_prefix: str, *, use_mtime: bool = False
+    output_path: str | os.PathLike[Any], checkpoint_prefix: str, *, use_mtime: bool = False
 ) -> list[str]:
     """Sort checkpoint paths based on the checkpoint step number.
 

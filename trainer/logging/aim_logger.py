@@ -1,4 +1,5 @@
-from typing import Optional
+import os
+from typing import Any
 
 import torch
 
@@ -15,9 +16,9 @@ if is_aim_available():
 class AimLogger(BaseDashboardLogger):
     def __init__(
         self,
-        repo: str,
+        repo: str | os.PathLike[Any],
         model_name: str,
-        tags: Optional[str] = None,
+        tags: str | None = None,
     ) -> None:
         self._context = None
         self.model_name = model_name

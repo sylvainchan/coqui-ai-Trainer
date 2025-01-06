@@ -3,7 +3,7 @@ import os
 import subprocess
 from collections.abc import ItemsView
 from pathlib import Path
-from typing import Any, Union
+from typing import Any
 
 import fsspec
 import torch
@@ -78,14 +78,14 @@ def get_commit_hash() -> str:
     return commit
 
 
-def get_experiment_folder_path(root_path: Union[str, os.PathLike[Any]], model_name: str) -> Path:
+def get_experiment_folder_path(root_path: str | os.PathLike[Any], model_name: str) -> Path:
     """Get an experiment folder path with the current date and time."""
     date_str = datetime.datetime.now().strftime("%B-%d-%Y_%I+%M%p")
     commit_hash = get_commit_hash()
     return Path(root_path) / f"{model_name}-{date_str}-{commit_hash}"
 
 
-def remove_experiment_folder(experiment_path: Union[str, os.PathLike[Any]]) -> None:
+def remove_experiment_folder(experiment_path: str | os.PathLike[Any]) -> None:
     """Check folder if there is a checkpoint, otherwise remove the folder."""
     experiment_path = str(experiment_path)
     fs = fsspec.get_mapper(experiment_path).fs
@@ -103,7 +103,9 @@ def count_parameters(model: torch.nn.Module) -> int:
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
-def set_partial_state_dict(model_dict: dict, checkpoint_state: dict, c: TrainerConfig) -> dict:
+def set_partial_state_dict(
+    model_dict: dict[str, Any], checkpoint_state: dict[str, Any], c: TrainerConfig
+) -> dict[str, Any]:
     # Partial initialization: if there is a mismatch with new and old layer, it is skipped.
     for k in checkpoint_state:
         if k not in model_dict:
@@ -133,10 +135,10 @@ class KeepAverage:
         self.avg_values: dict[str, float] = {}
         self.iters: dict[str, int] = {}
 
-    def __getitem__(self, key: str) -> Any:
+    def __getitem__(self, key: str) -> float:
         return self.avg_values[key]
 
-    def items(self) -> ItemsView[str, Any]:
+    def items(self) -> ItemsView[str, float]:
         return self.avg_values.items()
 
     def add_value(self, name: str, init_val: float = 0, init_iter: int = 0) -> None:

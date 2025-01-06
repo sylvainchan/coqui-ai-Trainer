@@ -1,4 +1,6 @@
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Any
+
+from trainer._types import Callback
 
 if TYPE_CHECKING:
     from trainer import Trainer
@@ -6,17 +8,17 @@ if TYPE_CHECKING:
 
 class TrainerCallback:
     def __init__(self) -> None:
-        self.callbacks_on_init_start: list[Callable] = []
-        self.callbacks_on_init_end: list[Callable] = []
-        self.callbacks_on_epoch_start: list[Callable] = []
-        self.callbacks_on_epoch_end: list[Callable] = []
-        self.callbacks_on_train_epoch_start: list[Callable] = []
-        self.callbacks_on_train_epoch_end: list[Callable] = []
-        self.callbacks_on_train_step_start: list[Callable] = []
-        self.callbacks_on_train_step_end: list[Callable] = []
-        self.callbacks_on_keyboard_interrupt: list[Callable] = []
+        self.callbacks_on_init_start: list[Callback] = []
+        self.callbacks_on_init_end: list[Callback] = []
+        self.callbacks_on_epoch_start: list[Callback] = []
+        self.callbacks_on_epoch_end: list[Callback] = []
+        self.callbacks_on_train_epoch_start: list[Callback] = []
+        self.callbacks_on_train_epoch_end: list[Callback] = []
+        self.callbacks_on_train_step_start: list[Callback] = []
+        self.callbacks_on_train_step_end: list[Callback] = []
+        self.callbacks_on_keyboard_interrupt: list[Callback] = []
 
-    def parse_callbacks_dict(self, callbacks_dict: dict[str, Callable]) -> None:
+    def parse_callbacks_dict(self, callbacks_dict: dict[str, Callback]) -> None:
         for key, value in callbacks_dict.items():
             if key == "on_init_start":
                 self.callbacks_on_init_start.append(value)
@@ -57,7 +59,7 @@ class TrainerCallback:
             for callback in self.callbacks_on_init_start:
                 callback(trainer)
 
-    def on_init_end(self, trainer) -> None:
+    def on_init_end(self, trainer: "Trainer") -> None:
         if hasattr(trainer.model, "module"):
             if hasattr(trainer.model.module, "on_init_end"):
                 trainer.model.module.on_init_end(trainer)
@@ -74,7 +76,7 @@ class TrainerCallback:
             for callback in self.callbacks_on_init_end:
                 callback(trainer)
 
-    def on_epoch_start(self, trainer) -> None:
+    def on_epoch_start(self, trainer: "Trainer") -> None:
         if hasattr(trainer.model, "module"):
             if hasattr(trainer.model.module, "on_epoch_start"):
                 trainer.model.module.on_epoch_start(trainer)
@@ -91,7 +93,7 @@ class TrainerCallback:
             for callback in self.callbacks_on_epoch_start:
                 callback(trainer)
 
-    def on_epoch_end(self, trainer) -> None:
+    def on_epoch_end(self, trainer: "Trainer") -> None:
         if hasattr(trainer.model, "module"):
             if hasattr(trainer.model.module, "on_epoch_end"):
                 trainer.model.module.on_epoch_end(trainer)
@@ -108,7 +110,7 @@ class TrainerCallback:
             for callback in self.callbacks_on_epoch_end:
                 callback(trainer)
 
-    def on_train_epoch_start(self, trainer) -> None:
+    def on_train_epoch_start(self, trainer: "Trainer") -> None:
         if hasattr(trainer.model, "module"):
             if hasattr(trainer.model.module, "on_train_epoch_start"):
                 trainer.model.module.on_train_epoch_start(trainer)
@@ -125,7 +127,7 @@ class TrainerCallback:
             for callback in self.callbacks_on_train_epoch_start:
                 callback(trainer)
 
-    def on_train_epoch_end(self, trainer) -> None:
+    def on_train_epoch_end(self, trainer: "Trainer") -> None:
         if hasattr(trainer.model, "module"):
             if hasattr(trainer.model.module, "on_train_epoch_end"):
                 trainer.model.module.on_train_epoch_end(trainer)
@@ -143,7 +145,7 @@ class TrainerCallback:
                 callback(trainer)
 
     @staticmethod
-    def before_backward_pass(trainer, loss_dict) -> None:
+    def before_backward_pass(trainer: "Trainer", loss_dict: dict[str, Any]) -> None:
         if hasattr(trainer.model, "module"):
             if hasattr(trainer.model.module, "before_backward_pass"):
                 trainer.model.module.before_backward_pass(loss_dict, trainer.optimizer)
@@ -151,14 +153,14 @@ class TrainerCallback:
             trainer.model.before_backward_pass(loss_dict, trainer.optimizer)
 
     @staticmethod
-    def before_gradient_clipping(trainer) -> None:
+    def before_gradient_clipping(trainer: "Trainer") -> None:
         if hasattr(trainer.model, "module"):
             if hasattr(trainer.model.module, "before_gradient_clipping"):
                 trainer.model.module.before_gradient_clipping()
         elif hasattr(trainer.model, "before_gradient_clipping"):
             trainer.model.before_gradient_clipping()
 
-    def on_train_step_start(self, trainer) -> None:
+    def on_train_step_start(self, trainer: "Trainer") -> None:
         if hasattr(trainer.model, "module"):
             if hasattr(trainer.model.module, "on_train_step_start"):
                 trainer.model.module.on_train_step_start(trainer)
@@ -175,7 +177,7 @@ class TrainerCallback:
             for callback in self.callbacks_on_train_step_start:
                 callback(trainer)
 
-    def on_train_step_end(self, trainer) -> None:
+    def on_train_step_end(self, trainer: "Trainer") -> None:
         if hasattr(trainer.model, "module"):
             if hasattr(trainer.model.module, "on_train_step_end"):
                 trainer.model.module.on_train_step_end(trainer)
@@ -192,7 +194,7 @@ class TrainerCallback:
             for callback in self.callbacks_on_train_step_end:
                 callback(trainer)
 
-    def on_keyboard_interrupt(self, trainer) -> None:
+    def on_keyboard_interrupt(self, trainer: "Trainer") -> None:
         if hasattr(trainer.model, "module"):
             if hasattr(trainer.model.module, "on_keyboard_interrupt"):
                 trainer.model.module.on_keyboard_interrupt(trainer)

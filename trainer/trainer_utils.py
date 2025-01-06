@@ -2,8 +2,8 @@ import importlib
 import importlib.util
 import os
 import random
-from collections.abc import Iterator
-from typing import Optional
+from collections.abc import Callable, Iterator
+from typing import Any
 
 import numpy as np
 import torch
@@ -73,7 +73,7 @@ def setup_torch_training_env(
     use_ddp: bool = False,
     training_seed: int = 54321,
     allow_tf32: bool = False,
-    gpu=None,
+    gpu: int | None = None,
 ) -> tuple[bool, int]:
     """Setup PyTorch environment for training.
 
@@ -96,7 +96,7 @@ def setup_torch_training_env(
     # set the correct cuda visible devices (using pci order)
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     if "CUDA_VISIBLE_DEVICES" not in os.environ and gpu is not None:
-        torch.cuda.set_device(int(gpu))
+        torch.cuda.set_device(gpu)
         num_gpus = 1
     else:
         num_gpus = torch.cuda.device_count()
@@ -123,8 +123,8 @@ def setup_torch_training_env(
 
 
 def get_scheduler(
-    lr_scheduler: str, lr_scheduler_params: dict, optimizer: torch.optim.Optimizer
-) -> torch.optim.lr_scheduler._LRScheduler:  # pylint: disable=protected-access
+    lr_scheduler: str | None, lr_scheduler_params: dict[str, Any], optimizer: torch.optim.Optimizer
+) -> torch.optim.lr_scheduler._LRScheduler | None:  # pylint: disable=protected-access
     """Find, initialize and return a Torch scheduler.
 
     Args:
@@ -149,10 +149,10 @@ def get_scheduler(
 
 def get_optimizer(
     optimizer_name: str,
-    optimizer_params: dict,
+    optimizer_params: dict[str, Any],
     lr: float,
-    model: Optional[torch.nn.Module] = None,
-    parameters: Optional[Iterator[Parameter]] = None,
+    model: torch.nn.Module | None = None,
+    parameters: Iterator[Parameter] | None = None,
 ) -> torch.optim.Optimizer:
     """Find, initialize and return a Torch optimizer.
 
@@ -167,7 +167,7 @@ def get_optimizer(
     """
     if optimizer_name.lower() == "radam":
         module = importlib.import_module("TTS.utils.radam")
-        optimizer = module.RAdam
+        optimizer: Callable[..., torch.optim.Optimizer] = module.RAdam
     else:
         optimizer = getattr(torch.optim, optimizer_name)
     if model is not None:

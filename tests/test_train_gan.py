@@ -109,7 +109,7 @@ def test_overfit_mnist_simple_gan(tmp_path):
             loss_real = criterion(logits, valid)
             return {"model_outputs": logits}, {"loss": loss_real}
 
-        @torch.no_grad()
+        @torch.inference_mode()
         def eval_step(self, batch, criterion, optimizer_idx):
             return self.train_step(batch, criterion, optimizer_idx)
 
@@ -200,7 +200,7 @@ def test_overfit_accelerate_mnist_simple_gan(tmp_path):
             loss_real = criterion(logits, valid)
             return {"model_outputs": logits}, {"loss": loss_real}
 
-        @torch.no_grad()
+        @torch.inference_mode()
         def eval_step(self, batch, criterion, optimizer_idx):
             return self.train_step(batch, criterion, optimizer_idx)
 
@@ -300,7 +300,7 @@ def test_overfit_manual_optimize_mnist_simple_gan(tmp_path):
             trainer.optimizer[1].step()
             return {"model_outputs": logits}, {"loss_gen": loss_gen, "loss_disc": loss_disc}
 
-        @torch.no_grad()
+        @torch.inference_mode()
         def eval_step(self, batch, trainer):
             imgs, _ = batch
 
@@ -413,7 +413,7 @@ def test_overfit_manual_optimize_grad_accum_mnist_simple_gan(tmp_path):
                 trainer.optimizer[1].zero_grad()
             return {"model_outputs": logits}, {"loss_gen": loss_gen, "loss_disc": loss_disc}
 
-        @torch.no_grad()
+        @torch.inference_mode()
         def eval_step(self, batch, criterion):
             imgs, _ = batch
 
@@ -528,7 +528,7 @@ def test_overfit_manual_accelerate_optimize_grad_accum_mnist_simple_gan(tmp_path
                 trainer.optimizer[1].zero_grad()
             return {"model_outputs": logits}, {"loss_gen": loss_gen, "loss_disc": loss_disc}
 
-        @torch.no_grad()
+        @torch.inference_mode()
         def eval_step(self, batch, criterion):
             imgs, _ = batch
 
@@ -582,11 +582,3 @@ def test_overfit_manual_accelerate_optimize_grad_accum_mnist_simple_gan(tmp_path
     print(f"loss_g1: {loss_g1}, loss_g2: {loss_g2}")
     assert loss_d1 > loss_d2, f"Discriminator loss should decrease. {loss_d1} > {loss_d2}"
     assert loss_g1 > loss_g2, f"Generator loss should decrease. {loss_g1} > {loss_g2}"
-
-
-if __name__ == "__main__":
-    test_overfit_mnist_simple_gan()
-    test_overfit_accelerate_mnist_simple_gan()
-    test_overfit_manual_optimize_mnist_simple_gan()
-    test_overfit_manual_optimize_grad_accum_mnist_simple_gan()
-    test_overfit_manual_accelerate_optimize_grad_accum_mnist_simple_gan()

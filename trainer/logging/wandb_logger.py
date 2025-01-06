@@ -3,7 +3,7 @@
 import traceback
 from collections import defaultdict
 from pathlib import Path
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Any, Union
 
 from trainer.logging.base_dash_logger import BaseDashboardLogger
 from trainer.trainer_utils import is_wandb_available
@@ -28,7 +28,7 @@ class WandbLogger(BaseDashboardLogger):
         self.run = wandb.init(**kwargs) if not wandb.run else wandb.run
         self.model_name = self.run.config.model
         # dictionary of dictionaries - record stats per step
-        self.log_dict = defaultdict(dict)
+        self.log_dict: dict[int, dict[str, Any]] = defaultdict(dict)
 
     def model_weights(self, model, step):
         layer_num = 1
