@@ -1,4 +1,4 @@
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from typing import Any
 
 from coqpit import Coqpit
@@ -227,13 +227,3 @@ class TrainerConfig(Coqpit):
         default=54321,
         metadata={"help": "Global seed for torch, random and numpy random number generator. Defaults to 54321"},
     )
-
-    def check_values(self) -> None:
-        """Check config fields."""
-        c = asdict(self)
-        optimizer_fields = ["optimizer", "grad_clip", "lr", "optimizer_params", "lr_scheduler"]
-        is_list = [isinstance(c[field], list) for field in optimizer_fields]
-        consistent = all(is_list) or not any(is_list)
-        if not consistent:
-            msg = f"Either none or all of these fields must be a list: {optimizer_fields}"
-            raise TypeError(msg)
