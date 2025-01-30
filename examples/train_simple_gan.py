@@ -137,10 +137,10 @@ class GANModel(TrainerModel):
         valid = valid.type_as(imgs)
 
         logits = self.discriminator(imgs_gen)
-        loss_gen = trainer.criterion(logits, valid)
+        loss_gen = criterion(logits, valid)
         return {"model_outputs": logits}, {"loss_gen": loss_gen}
 
-    def get_optimizer(self):
+    def get_optimizer(self) -> list[torch.optim.Optimizer]:
         discriminator_optimizer = torch.optim.Adam(self.discriminator.parameters(), lr=0.0001, betas=(0.5, 0.999))
         generator_optimizer = torch.optim.Adam(self.generator.parameters(), lr=0.001, betas=(0.5, 0.999))
         return [discriminator_optimizer, generator_optimizer]

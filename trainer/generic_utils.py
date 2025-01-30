@@ -23,19 +23,6 @@ def is_pytorch_at_least_2_4() -> bool:
     return Version(torch.__version__) >= Version("2.4")
 
 
-def isimplemented(obj: Any, method_name: str) -> bool:
-    """Check if a method is implemented in a class."""
-    if method_name in dir(obj) and callable(getattr(obj, method_name)):
-        try:
-            obj.__getattribute__(method_name)()  # pylint: disable=bad-option-value, unnecessary-dunder-call
-        except NotImplementedError:
-            return False
-        except Exception:
-            return True
-        return True
-    return False
-
-
 def to_cuda(x: torch.Tensor) -> torch.Tensor:
     if x is None:
         return None

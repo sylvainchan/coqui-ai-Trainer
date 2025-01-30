@@ -29,7 +29,6 @@ from trainer.generic_utils import (
     get_git_branch,
     is_pytorch_at_least_2_3,
     is_pytorch_at_least_2_4,
-    isimplemented,
     remove_experiment_folder,
     set_partial_state_dict,
     to_cuda,
@@ -292,8 +291,7 @@ class Trainer:
             raise ValueError(msg)
 
         # init model's training assets
-        if isimplemented(self.model, "init_for_training"):
-            self.model.init_for_training()
+        self.model.init_for_training()
 
         # setup criterion
         self.criterion = self.get_criterion(self.model)
@@ -321,25 +319,13 @@ class Trainer:
         # setup optimizer
         self.optimizer = self.get_optimizer(self.model, self.config)
 
-        # If multiple-optimizer setup with grad accumulation and without custom optimize method raise an error
-        if (
-            self.grad_accum_steps != 1
-            and isinstance(self.optimizer, list)
-            and not isimplemented(self.model, "optimize")
-        ):
-            msg = " [!] Coqui Trainer does not support grad_accum_steps for multiple-optimizer setup, please set grad_accum_steps to 1 or implement in your model a custom method called `optimize` that need to deal with dangling gradients in multiple-optimizer setup!"
-            raise ValueError(msg)
-
         # CALLBACK
         self.callbacks = TrainerCallback()
         self.callbacks.parse_callbacks_dict(callbacks)
         self.callbacks.on_init_start(self)
 
         # init AMP
-        if self.use_amp_scaler:
-            self.scaler = GradScaler()
-        else:
-            self.scaler = None
+        self.scaler = GradScaler() if self.use_amp_scaler else None
 
         # restore model
         if self.args.restore_path:
@@ -354,8 +340,10 @@ class Trainer:
         )
 
         # DISTRIBUTED
+        self.wrapped_model: TrainerModel | None = None
         if self.use_pt_ddp:
-            self.model = DDP_th(self.model, device_ids=[args.rank], output_device=args.rank)  # type: ignore[assignment]
+            ddp_model = DDP_th(self.model, device_ids=[args.rank], output_device=args.rank)
+            self.wrapped_model = ddp_model.module  # cast(TrainerModel, ddp_model.module)
 
         # setup accelerator
         self.setup_accelerate()
@@ -696,26 +684,25 @@ class Trainer:
         verbose: bool,
         num_gpus: int,
     ) -> DataLoader[Any]:
-        if num_gpus > 1:
-            if isimplemented(model.module, "get_data_loader"):
-                loader = model.module.get_data_loader(
-                    config,
-                    assets,
-                    is_eval,
-                    samples,
-                    verbose,
-                    num_gpus,
-                    self.args.rank,
-                )
-        elif isimplemented(model, "get_data_loader"):
-            loader = model.get_data_loader(
-                config=config, assets=assets, is_eval=is_eval, samples=samples, verbose=verbose, num_gpus=num_gpus
-            )
+        loader = model.get_data_loader(
+            config=config,
+            assets=assets,
+            is_eval=is_eval,
+            samples=samples,
+            verbose=verbose,
+            num_gpus=num_gpus,
+            rank=self.args.rank,
+        )
 
         assert (
             len(loader) > 0
         ), " ❗ len(DataLoader) returns 0. Make sure your dataset is not empty or len(dataset) > 0. "
         return loader
+
+    def _get_model(self) -> TrainerModel:
+        if not hasattr(self, "wrapped_model") or self.wrapped_model is None:
+            return self.model
+        return self.wrapped_model
 
     def get_train_dataloader(
         self, training_assets: dict[str, Any], samples: list[Any] | None, *, verbose: bool
@@ -733,28 +720,26 @@ class Trainer:
         Returns:
             DataLoader: Initialized training data loader.
         """
-        if self.num_gpus > 1:
-            if isimplemented(self.model.module, "get_train_data_loader"):
-                return self.model.module.get_train_data_loader(
-                    self.config,
-                    self.training_assets,
-                    samples,
-                    verbose,
-                    self.num_gpus,
-                    self.args.rank,
-                )
-        elif isimplemented(self.model, "get_train_data_loader"):
-            return self.model.get_train_data_loader(self.config, self.training_assets, samples, verbose, self.num_gpus)
-
-        return self._get_loader(
-            self.model,
-            self.config,
-            training_assets,
-            samples,
-            is_eval=False,
-            verbose=verbose,
-            num_gpus=self.num_gpus,
-        )
+        model = self._get_model()
+        try:
+            return model.get_train_data_loader(
+                self.config,
+                self.training_assets,
+                samples,
+                verbose,
+                self.num_gpus,
+                self.args.rank,
+            )
+        except NotImplementedError:
+            return self._get_loader(
+                model,
+                self.config,
+                training_assets,
+                samples,
+                is_eval=False,
+                verbose=verbose,
+                num_gpus=self.num_gpus,
+            )
 
     def get_eval_dataloader(
         self, training_assets: dict[str, Any], samples: list[Any] | None, *, verbose: bool
@@ -772,28 +757,26 @@ class Trainer:
         Returns:
             DataLoader: Initialized training data loader.
         """
-        if self.num_gpus > 1:
-            if isimplemented(self.model.module, "get_eval_data_loader"):
-                return self.model.module.get_eval_data_loader(
-                    self.config,
-                    self.training_assets,
-                    samples,
-                    verbose,
-                    self.num_gpus,
-                    self.args.rank,
-                )
-        elif isimplemented(self.model, "get_eval_data_loader"):
-            return self.model.get_eval_data_loader(self.config, self.training_assets, samples, verbose, self.num_gpus)
-
-        return self._get_loader(
-            self.model,
-            self.config,
-            training_assets,
-            samples,
-            is_eval=True,
-            verbose=verbose,
-            num_gpus=self.num_gpus,
-        )
+        model = self._get_model()
+        try:
+            return model.get_eval_data_loader(
+                self.config,
+                self.training_assets,
+                samples,
+                verbose,
+                self.num_gpus,
+                self.args.rank,
+            )
+        except NotImplementedError:
+            return self._get_loader(
+                model,
+                self.config,
+                training_assets,
+                samples,
+                is_eval=True,
+                verbose=verbose,
+                num_gpus=self.num_gpus,
+            )
 
     def get_test_dataloader(
         self, training_assets: dict[str, Any], samples: list[Any] | None, *, verbose: bool
@@ -811,28 +794,26 @@ class Trainer:
         Returns:
             DataLoader: Initialized training data loader.
         """
-        if self.num_gpus > 1:
-            if isimplemented(self.model.module, "get_test_data_loader"):
-                return self.model.module.get_test_data_loader(
-                    self.config,
-                    self.training_assets,
-                    samples,
-                    verbose,
-                    self.num_gpus,
-                    self.args.rank,
-                )
-        elif isimplemented(self.model, "get_test_data_loader"):
-            return self.model.get_test_data_loader(self.config, self.training_assets, samples, verbose, self.num_gpus)
-
-        return self._get_loader(
-            self.model,
-            self.config,
-            training_assets,
-            samples,
-            is_eval=True,
-            verbose=verbose,
-            num_gpus=self.num_gpus,
-        )
+        model = self._get_model()
+        try:
+            return model.get_test_data_loader(
+                self.config,
+                self.training_assets,
+                samples,
+                verbose,
+                self.num_gpus,
+                self.args.rank,
+            )
+        except NotImplementedError:
+            return self._get_loader(
+                model,
+                self.config,
+                training_assets,
+                samples,
+                is_eval=True,
+                verbose=verbose,
+                num_gpus=self.num_gpus,
+            )
 
     def format_batch(self, batch: dict[str, Any] | list[Any]) -> dict[str, Any] | list[Any]:
         """Format the dataloader output and return a batch.
@@ -848,7 +829,11 @@ class Trainer:
             Dict: Formatted batch.
         """
         with suppress(NotImplementedError):
-            batch = self.model.module.format_batch(batch) if self.num_gpus > 1 else self.model.format_batch(batch)
+            batch = (
+                self.wrapped_model.format_batch(batch)
+                if self.wrapped_model is not None
+                else self.model.format_batch(batch)
+            )
 
         if isinstance(batch, dict):
             for k, v in batch.items():
@@ -856,13 +841,12 @@ class Trainer:
         elif isinstance(batch, list):
             batch = [to_cuda(v) for v in batch]
 
-        try:
-            if self.num_gpus > 1:
-                batch = self.model.module.format_batch_on_device(batch)
-            else:
-                batch = self.model.format_batch_on_device(batch)
-        except NotImplementedError:
-            pass
+        with suppress(NotImplementedError):
+            batch = (
+                self.wrapped_model.format_batch_on_device(batch)
+                if self.wrapped_model is not None
+                else self.model.format_batch_on_device(batch)
+            )
         return batch
 
     ######################
@@ -881,10 +865,9 @@ class Trainer:
         for group in optimizer.param_groups:
             yield from group["params"]
 
-    @staticmethod
     def _model_train_step(
+        self,
         batch: dict[str, Any] | list[Any],
-        model: TrainerModel,
         criterion: nn.Module | list[nn.Module],
         optimizer_idx: int | None = None,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -892,7 +875,6 @@ class Trainer:
 
         Args:
             batch (Dict): [description]
-            model (TrainerModel): [description]
             criterion (nn.Module): [description]
             optimizer_idx (int, optional): [description]. Defaults to None.
 
@@ -903,9 +885,9 @@ class Trainer:
         if optimizer_idx is not None:
             input_args.append(optimizer_idx)
         # unwrap model in DDP training
-        if hasattr(model, "module"):
-            return model.module.train_step(*input_args)
-        return model.train_step(*input_args)
+        if self.wrapped_model is not None:
+            return self.wrapped_model.train_step(*input_args)
+        return self.model.train_step(*input_args)
 
     def _get_autocast_args(self, *, mixed_precision: bool, precision: str) -> tuple[str, torch.dtype]:
         device = "cpu"
@@ -948,17 +930,17 @@ class Trainer:
     def _compute_loss(
         self,
         batch: dict[str, Any] | list[Any],
-        model: TrainerModel,
         criterion: nn.Module | list[nn.Module],
-        config: TrainerConfig,
         optimizer_idx: int | None,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
-        device, dtype = self._get_autocast_args(mixed_precision=config.mixed_precision, precision=config.precision)
-        with torch.autocast(device_type=device, dtype=dtype, enabled=config.mixed_precision):
+        device, dtype = self._get_autocast_args(
+            mixed_precision=self.config.mixed_precision, precision=self.config.precision
+        )
+        with torch.autocast(device_type=device, dtype=dtype, enabled=self.config.mixed_precision):
             if optimizer_idx is not None:
-                outputs, loss_dict = self._model_train_step(batch, model, criterion, optimizer_idx=optimizer_idx)
+                outputs, loss_dict = self._model_train_step(batch, criterion, optimizer_idx=optimizer_idx)
             else:
-                outputs, loss_dict = self._model_train_step(batch, model, criterion)
+                outputs, loss_dict = self._model_train_step(batch, criterion)
         return outputs, loss_dict
 
     @staticmethod
@@ -997,12 +979,10 @@ class Trainer:
     def optimize(
         self,
         batch: dict[str, Any] | list[Any],
-        model: TrainerModel,
         optimizer: torch.optim.Optimizer,
         scaler: "torch.GradScaler | None",
         criterion: nn.Module | list[nn.Module],
         scheduler: LRScheduler | None,
-        config: TrainerConfig,
         *,
         optimizer_idx: int | None = None,
         step_optimizer: bool = True,
@@ -1012,12 +992,10 @@ class Trainer:
 
         Args:
             batch (Dict): Input batch. If
-            model (TrainerModel): Model for training. Defaults to None.
             optimizer (Union[nn.optim.Optimizer, List]): Model's optimizer. If it is a list then, `optimizer_idx` must be defined to indicate the optimizer in use.
             scaler (AMPScaler): AMP scaler.
             criterion (nn.Module): Model's criterion.
             scheduler (LRScheduler): LR scheduler used by the optimizer.
-            config (TrainerConfig): Model config.
             optimizer_idx (int, optional): Target optimizer being used. Defaults to None.
             step_optimizer (bool, optional): Whether step the optimizer. If False, gradients are accumulated and
                 model parameters are not updated. Defaults to True.
@@ -1032,16 +1010,14 @@ class Trainer:
         step_start_time = time.time()
 
         # forward pass and loss computation
-        outputs, loss_dict = self._compute_loss(
-            batch=batch, model=model, criterion=criterion, config=config, optimizer_idx=optimizer_idx
-        )
+        outputs, loss_dict = self._compute_loss(batch=batch, criterion=criterion, optimizer_idx=optimizer_idx)
 
         # skip the rest if not outputs from the model
         if not loss_dict:
             step_time = time.time() - step_start_time
             return outputs, {}, step_time
 
-        grad_clip = self._set_grad_clip_per_optimizer(config=config, optimizer_idx=optimizer_idx)
+        grad_clip = self._set_grad_clip_per_optimizer(config=self.config, optimizer_idx=optimizer_idx)
         # optimizer step
         grad_norm: float | torch.Tensor = 0.0
         update_lr_scheduler = True
@@ -1053,13 +1029,13 @@ class Trainer:
         loss_dict["loss"] = loss_dict["loss"] / float(self.grad_accum_steps)
 
         if self.use_accelerate:
-            with self.accelerator.accumulate(model):
-                ctx_mgr = self.accelerator.autocast if config.mixed_precision else nullcontext
+            with self.accelerator.accumulate(self.model):
+                ctx_mgr = self.accelerator.autocast if self.config.mixed_precision else nullcontext
                 with ctx_mgr():
                     self.accelerator.backward(loss_dict["loss"])
                     grad_norm = self._compute_grad_norm(optimizer)
                     if self.accelerator.sync_gradients and grad_clip is not None and grad_clip > 0:
-                        self.accelerator.clip_grad_norm_(model.parameters(), grad_clip)
+                        self.accelerator.clip_grad_norm_(self.model.parameters(), grad_clip)
                     optimizer.step()
                     if (
                         scheduler is not None
@@ -1141,7 +1117,7 @@ class Trainer:
         loss_dict = {}
 
         # OPTIMIZATION
-        if isimplemented(self.model, "optimize"):  # pylint: disable=too-many-nested-blocks
+        try:
             # custom optimize for the model
             step_time = time.time()
             device, dtype = self._get_autocast_args(
@@ -1156,7 +1132,7 @@ class Trainer:
             # TODO: find a way to log grad_norm for custom optimize
             loss_dict_new = self.detach_loss_dict(loss_dict_new, step_optimizer=True)
             loss_dict.update(loss_dict_new)
-        else:
+        except NotImplementedError as e:
             # gradient accumulation
             # TODO: grad accumulation for each optimizer
             step_optimizer = True
@@ -1164,23 +1140,27 @@ class Trainer:
                 step_optimizer = False
 
             if not isinstance(self.optimizer, list):
-                if isinstance(self.scheduler, dict | list):
-                    msg = "Can't use dict or list of schedulers with a single optimizer."
-                    raise TypeError(msg)
+                if isinstance(self.scheduler, list):
+                    msg = "Can't use list of schedulers with a single optimizer."
+                    raise TypeError(msg) from e
+                if isinstance(self.scheduler, dict):
+                    msg = "Can only use dict of schedulers with custom `optimize()`"
+                    raise TypeError(msg) from e
                 # auto training with a single optimizer
                 outputs, loss_dict_new, step_time = self.optimize(
                     batch,
-                    self.model,
                     self.optimizer,
                     self.scaler,
                     self.criterion,
                     self.scheduler,
-                    self.config,
                     step_optimizer=step_optimizer,
                     num_optimizers=1,
                 )
                 loss_dict.update(loss_dict_new)
             else:
+                if self.grad_accum_steps != 1:
+                    msg = " [!] Coqui Trainer does not support grad_accum_steps for multiple-optimizer setup, please set grad_accum_steps to 1 or implement in your model a custom `optimize` method to deal with dangling gradients in multiple-optimizer setup!"
+                    raise ValueError(msg) from e
                 # auto training with multiple optimizers (e.g. GAN)
                 outputs_per_optimizer = []
                 total_step_time = 0.0
@@ -1193,12 +1173,10 @@ class Trainer:
                         scheduler = self.scheduler[idx]
                     optimizer_outputs, loss_dict_new, step_time = self.optimize(
                         batch,
-                        self.model,
                         optimizer,
                         scaler,
                         criterion,
                         scheduler,
-                        self.config,
                         optimizer_idx=idx,
                         step_optimizer=step_optimizer,
                         num_optimizers=len(self.optimizer),
@@ -1301,10 +1279,7 @@ class Trainer:
             )
             self.train_loader = self.prepare_accelerate_loader(self.train_loader)
         # set model to training mode
-        if self.num_gpus > 1:
-            self.model.module.train()
-        else:
-            self.model.train()
+        self.model.train()
         epoch_start_time = time.time()
 
         self.callbacks.on_train_epoch_start(self)
@@ -1324,10 +1299,7 @@ class Trainer:
             # RUN EVAL -> run evaluation epoch in the middle of training. Useful for big datasets.
             if self.config.run_eval_steps is not None and (self.total_steps_done % self.config.run_eval_steps == 0):
                 self.eval_epoch()
-                if self.num_gpus > 1:
-                    self.model.module.train()
-                else:
-                    self.model.train()
+                self.model.train()
 
         epoch_time = time.time() - epoch_start_time
         self.callbacks.on_train_epoch_end(self)
@@ -1377,18 +1349,10 @@ class Trainer:
             Tuple[Dict, Dict]: model outputs and losses.
         """
         input_args: list[Any] = [batch, criterion]
-
-        if isimplemented(model, "optimize"):
-            if hasattr(model, "module"):
-                return model.module.eval_step(batch, self)
-            return model.eval_step(batch, self)
-
         if optimizer_idx is not None:
             input_args.append(optimizer_idx)
-        if hasattr(model, "module"):
-            return model.module.eval_step(*input_args)
 
-        return model.eval_step(*input_args)
+        return self._get_model().eval_step(*input_args)
 
     def eval_step(
         self, batch: dict[str, Any], step: int
@@ -1405,15 +1369,15 @@ class Trainer:
         outputs: dict[str, Any] | list[dict[str, Any]]
         with torch.inference_mode():
             loss_dict: dict[str, Any] = {}
-            if not isinstance(self.optimizer, list) or isimplemented(self.model, "optimize"):
-                outputs, loss_dict = self._model_eval_step(batch, self.model, self.criterion)
+            model = self._get_model()
+            if not isinstance(self.optimizer, list) or len(signature(model.eval_step).parameters) == 2:  # noqa: PLR2004
+                outputs, loss_dict = model.eval_step(batch, self.criterion)
                 if outputs is None:
                     return None, None
             else:
                 optimizer_outputs = []
                 for idx, _ in enumerate(self.optimizer):
-                    criterion = self.criterion
-                    outputs_, loss_dict_new = self._model_eval_step(batch, self.model, criterion, idx)
+                    outputs_, loss_dict_new = model.eval_step(batch, self.criterion, idx)
                     if outputs_ is None:
                         return None, None
                     optimizer_outputs.append(outputs_)
@@ -1474,16 +1438,9 @@ class Trainer:
             loader_start_time = time.time()
         # plot epoch stats, artifacts and figures
         if self.args.rank == 0 and outputs is not None:
-            if hasattr(self.model, "module") and isimplemented(self.model.module, "eval_log"):
-                self.model.module.eval_log(
-                    batch,
-                    outputs,
-                    self.dashboard_logger,
-                    self.training_assets,
-                    self.total_steps_done,
-                )
-            elif isimplemented(self.model, "eval_log"):
-                self.model.eval_log(
+            model = self._get_model()
+            with suppress(NotImplementedError):
+                model.eval_log(
                     batch,
                     outputs,
                     self.dashboard_logger,
@@ -1508,35 +1465,21 @@ class Trainer:
         and iterate over it.
         """
         self.model.eval()
+        model = self._get_model()
         test_outputs = None
-        if isimplemented(self.model, "test_run") or (
-            self.num_gpus > 1 and isimplemented(self.model.module, "test_run")
-        ):
-            # handle everything in ```model.test_run()`
-            if self.num_gpus > 1:
-                test_outputs = self.model.module.test_run(self.training_assets)
-            else:
-                test_outputs = self.model.test_run(self.training_assets)
-        elif isimplemented(self.model, "test") or (self.num_gpus > 1 and isimplemented(self.model.module, "test")):
+        try:
+            test_outputs = model.test_run(self.training_assets)
+        except NotImplementedError:
             self.test_loader = self.get_test_dataloader(
                 self.training_assets,
                 self.test_samples if self.test_samples else self.eval_samples,
                 verbose=True,
             )
             # use test_loader to load test samples
-            if self.num_gpus > 1:
-                test_outputs = self.model.module.test(self.training_assets, self.test_loader, None)
-            else:
-                test_outputs = self.model.test(self.training_assets, self.test_loader, None)
-        if isimplemented(self.model, "test_log") or (
-            self.num_gpus > 1 and isimplemented(self.model.module, "test_log")
-        ):
-            if self.num_gpus > 1:
-                self.model.module.test_log(
-                    test_outputs, self.dashboard_logger, self.training_assets, self.total_steps_done
-                )
-            else:
-                self.model.test_log(test_outputs, self.dashboard_logger, self.training_assets, self.total_steps_done)
+            with suppress(NotImplementedError):
+                test_outputs = model.test(self.training_assets, self.test_loader, None)
+        with suppress(NotImplementedError):
+            model.test_log(test_outputs, self.dashboard_logger, self.training_assets, self.total_steps_done)
 
     def _restore_best_loss(self) -> None:
         """Restore the best loss.
@@ -1742,7 +1685,7 @@ class Trainer:
             {"train_loss": train_loss, "eval_loss": eval_loss},
             self.best_loss,
             self.config,
-            self.model,
+            self._get_model(),
             self.optimizer,
             self.scaler if self.use_amp_scaler else None,
             self.total_steps_done,
@@ -1761,7 +1704,7 @@ class Trainer:
 
         save_checkpoint(
             self.config,
-            self.model,
+            self._get_model(),
             self.optimizer,
             self.scaler if self.use_amp_scaler else None,
             self.total_steps_done,
@@ -1786,16 +1729,9 @@ class Trainer:
 
         # training visualizations
         if batch is not None and outputs is not None:
-            if hasattr(self.model, "module") and isimplemented(self.model.module, "train_log"):
-                self.model.module.train_log(
-                    batch,
-                    outputs,
-                    self.dashboard_logger,
-                    self.training_assets,
-                    self.total_steps_done,
-                )
-            elif isimplemented(self.model, "train_log"):
-                self.model.train_log(
+            model = self._get_model()
+            with suppress(NotImplementedError):
+                model.train_log(
                     batch,
                     outputs,
                     self.dashboard_logger,
@@ -1823,13 +1759,9 @@ class Trainer:
         Returns:
             Union[torch.optim.Optimizer, List]: A optimizer or a list of optimizers. GAN models define a list.
         """
-        optimizer = None
-        if isimplemented(model, "get_optimizer"):
-            try:
-                optimizer = model.get_optimizer()
-            except NotImplementedError:
-                optimizer = None
-        if optimizer is None:
+        try:
+            return model.get_optimizer()
+        except NotImplementedError as e:
             if isinstance(config.optimizer, list):
                 optimizers = []
                 for i, optimizer_name in enumerate(config.optimizer):
@@ -1838,11 +1770,10 @@ class Trainer:
                 return optimizers
             if config.optimizer is None:
                 msg = "No name specified in `optimizer`"
-                raise ValueError(msg)
+                raise ValueError(msg) from e
             optimizer_name = config.optimizer
             optimizer_params = {} if config.optimizer_params is None else config.optimizer_params
             return get_optimizer(optimizer_name, optimizer_params, config.lr, model)  # type: ignore[arg-type]
-        return optimizer
 
     @staticmethod
     def get_lr(model: TrainerModel, config: TrainerConfig) -> float | list[float] | dict[str, float]:
@@ -1858,15 +1789,10 @@ class Trainer:
         Returns:
             Union[float, List[float]]: A single learning rate or a list of learning rates, one for each optimzier.
         """
-        lr = None
-        if isimplemented(model, "get_lr"):
-            try:
-                lr = model.get_lr()
-            except NotImplementedError:
-                lr = None
-        if lr is None:
-            lr = config.lr
-        return lr
+        try:
+            return model.get_lr()
+        except NotImplementedError:
+            return config.lr
 
     @staticmethod
     def get_scheduler(
@@ -1886,22 +1812,12 @@ class Trainer:
         Returns:
             Union[torch.optim.Optimizer, List, Dict]: A scheduler or a list of schedulers, one for each optimizer.
         """
-        scheduler = None
-        if isimplemented(model, "get_scheduler"):
-            try:
-                scheduler = model.get_scheduler(optimizer)
-            except NotImplementedError:
-                scheduler = None
-            if isinstance(scheduler, dict) and not isimplemented(model, "optimize"):
-                msg = (
-                    " [!] Dictionary of schedulers are only supported with the manual optimization `model.optimize()`."
-                )
-                raise ValueError(msg)
-        if scheduler is None:
+        try:
+            return model.get_scheduler(optimizer)
+        except NotImplementedError:
             lr_scheduler = config.lr_scheduler
             lr_scheduler_params = config.lr_scheduler_params
             return get_scheduler(lr_scheduler, lr_scheduler_params, optimizer)  # type: ignore[arg-type]
-        return scheduler
 
     @staticmethod
     def restore_scheduler(
