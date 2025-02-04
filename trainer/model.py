@@ -8,9 +8,6 @@ if TYPE_CHECKING:
     from trainer.trainer import Trainer
 
 
-# pylint: skip-file
-
-
 class TrainerModel(ABC, nn.Module):
     """Abstract 🐸TTS class. Every new 🐸TTS model must inherit this."""
 
@@ -128,6 +125,24 @@ class TrainerModel(ABC, nn.Module):
         msg = " [!] `get_data_loader()` is not implemented."
         raise NotImplementedError(msg)
 
+    def get_train_data_loader(*args: Any, **kwargs: Any) -> torch.utils.data.DataLoader[Any]:
+        raise NotImplementedError
+
+    def get_eval_data_loader(*args: Any, **kwargs: Any) -> torch.utils.data.DataLoader[Any]:
+        raise NotImplementedError
+
+    def get_test_data_loader(*args: Any, **kwargs: Any) -> torch.utils.data.DataLoader[Any]:
+        raise NotImplementedError
+
+    def test_run(self, *args: Any, **kwargs: Any):
+        raise NotImplementedError
+
+    def test(self, assets: dict[str, Any], data_loader: torch.utils.data.DataLoader[Any], outputs: Any | None = None):
+        raise NotImplementedError
+
+    def test_log(self, *args: Any, **kwargs: Any):
+        raise NotImplementedError
+
     def init_for_training(self) -> None:
         """Initialize model for training."""
 
@@ -172,22 +187,51 @@ class TrainerModel(ABC, nn.Module):
             # main model optimizer step
             loss.backward()
 
-    # def get_optimizer(self) -> Union["Optimizer", List["Optimizer"]]:
-    #     """Setup an return optimizer or optimizers."""
-    #     ...
+    def get_optimizer(self) -> torch.optim.Optimizer | list[torch.optim.Optimizer]:
+        """Setup an return optimizer or optimizers."""
+        raise NotImplementedError
 
-    # def get_lr(self) -> Union[float, List[float]]:
-    #     """Return learning rate(s).
+    def get_lr(self) -> float | list[float]:
+        """Return learning rate(s).
 
-    #     Returns:
-    #         Union[float, List[float]]: Model's initial learning rates.
-    #     """
-    #     ...
+        Returns:
+            Union[float, List[float]]: Model's initial learning rates.
+        """
+        raise NotImplementedError
 
-    # def get_scheduler(self, optimizer: torch.optim.Optimizer):
-    #     ...
+    def get_scheduler(
+        self, optimizer: torch.optim.Optimizer | list[torch.optim.Optimizer] | dict[str, torch.optim.Optimizer]
+    ):
+        raise NotImplementedError
 
     def get_criterion(self) -> nn.Module | list[nn.Module]:
         """Return model criterion."""
         msg = "`get_criterion` is not implemented."
         raise NotImplementedError(msg)
+
+    ## Callbacks
+    def on_init_start(self, trainer: "Trainer") -> None: ...
+
+    def on_init_end(self, trainer: "Trainer") -> None: ...
+
+    def on_epoch_start(self, trainer: "Trainer") -> None: ...
+
+    def on_epoch_end(self, trainer: "Trainer") -> None: ...
+
+    def on_train_epoch_start(self, trainer: "Trainer") -> None: ...
+
+    def on_train_epoch_end(self, trainer: "Trainer") -> None: ...
+
+    @staticmethod
+    def before_backward_pass(
+        loss_dict: dict[str, Any], optimizer: torch.optim.Optimizer | list[torch.optim.Optimizer]
+    ) -> None: ...
+
+    @staticmethod
+    def before_gradient_clipping() -> None: ...
+
+    def on_train_step_start(self, trainer: "Trainer") -> None: ...
+
+    def on_train_step_end(self, trainer: "Trainer") -> None: ...
+
+    def on_keyboard_interrupt(self, trainer: "Trainer") -> None: ...

@@ -301,7 +301,7 @@ def test_overfit_manual_optimize_mnist_simple_gan(tmp_path):
             return {"model_outputs": logits}, {"loss_gen": loss_gen, "loss_disc": loss_disc}
 
         @torch.inference_mode()
-        def eval_step(self, batch, trainer):
+        def eval_step(self, batch, criterion):
             imgs, _ = batch
 
             # sample noise
@@ -313,7 +313,7 @@ def test_overfit_manual_optimize_mnist_simple_gan(tmp_path):
             valid = valid.type_as(imgs)
 
             logits = self.discriminator(imgs_gen)
-            loss_gen = trainer.criterion(logits, valid)
+            loss_gen = criterion(logits, valid)
             return {"model_outputs": logits}, {"loss_gen": loss_gen}
 
         def get_optimizer(self):
@@ -426,7 +426,7 @@ def test_overfit_manual_optimize_grad_accum_mnist_simple_gan(tmp_path):
             valid = valid.type_as(imgs)
 
             logits = self.discriminator(imgs_gen)
-            loss_gen = trainer.criterion(logits, valid)
+            loss_gen = criterion(logits, valid)
             return {"model_outputs": logits}, {"loss_gen": loss_gen}
 
         def get_optimizer(self):
@@ -541,7 +541,7 @@ def test_overfit_manual_accelerate_optimize_grad_accum_mnist_simple_gan(tmp_path
             valid = valid.type_as(imgs)
 
             logits = self.discriminator(imgs_gen)
-            loss_gen = trainer.criterion(logits, valid)
+            loss_gen = criterion(logits, valid)
             return {"model_outputs": logits}, {"loss_gen": loss_gen}
 
         def get_optimizer(self):

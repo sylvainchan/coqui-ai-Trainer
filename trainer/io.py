@@ -17,6 +17,7 @@ from torch.types import Storage
 from trainer._types import LossDict
 from trainer.generic_utils import is_pytorch_at_least_2_4
 from trainer.logger import logger
+from trainer.model import TrainerModel
 
 # `torch.serialization.add_safe_globals` is needed for weights_only=True to work
 # with all Coqui models and only available from Pytorch >=2.4
@@ -124,7 +125,7 @@ def save_fsspec(state: Any, path: str | os.PathLike[Any], **kwargs: Any) -> None
 
 def save_model(
     config: dict[str, Any] | Coqpit,
-    model: torch.nn.Module,
+    model: TrainerModel,
     optimizer: torch.optim.Optimizer | list[torch.optim.Optimizer],
     scaler: "torch.GradScaler | None",
     current_step: int,
@@ -133,7 +134,7 @@ def save_model(
     save_func: Callable[[Any, str | os.PathLike[Any]], None] | None = None,
     **kwargs: Any,
 ) -> None:
-    model_state = model.module.state_dict() if hasattr(model, "module") else model.state_dict()
+    model_state = model.state_dict()
     optimizer_state: StateDict | list[StateDict] | None
     if isinstance(optimizer, list):
         optimizer_state = [optim.state_dict() for optim in optimizer]
@@ -169,7 +170,7 @@ def save_model(
 
 def save_checkpoint(
     config: dict[str, Any] | Coqpit,
-    model: torch.nn.Module,
+    model: TrainerModel,
     optimizer: torch.optim.Optimizer | list[torch.optim.Optimizer],
     scaler: "torch.GradScaler | None",
     current_step: int,
@@ -202,7 +203,7 @@ def save_best_model(
     current_loss: LossDict | float,
     best_loss: LossDict | float,
     config: dict[str, Any] | Coqpit,
-    model: torch.nn.Module,
+    model: TrainerModel,
     optimizer: torch.optim.Optimizer | list[torch.optim.Optimizer],
     scaler: "torch.GradScaler | None",
     current_step: int,
