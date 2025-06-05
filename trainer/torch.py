@@ -1,7 +1,5 @@
-import contextlib
 from collections.abc import Iterator
 
-import numpy as np
 import torch
 from torch.utils.data.distributed import DistributedSampler
 
@@ -103,21 +101,18 @@ class StepwiseGradualLR(torch.optim.lr_scheduler._LRScheduler):
 
     def get_lr(self):
         step = max(self.last_epoch, 1)
-        step_thresholds = []
-        rates = []
-        for values in self.gradual_learning_rates:
-            step_thresholds.append(values[0])
-            rates.append(values[1])
+        step_thresholds = [x[0] for x in self.gradual_learning_rates]
+        rates = [x[1] for x in self.gradual_learning_rates]
 
-        boolean_indeces = np.less_equal(step_thresholds, step)
         # Ignore steps larger than the last step in the list
-        with contextlib.suppress(IndexError):
-            last_true = np.where(boolean_indeces)[0][-1]  # pylint: disable=singleton-comparison
-        lr = rates[np.max(last_true, 0)]
+        valid_indices = [i for i, threshold in enumerate(step_thresholds) if threshold <= step]
+        last_true_idx = valid_indices[-1] if valid_indices else 0
+        lr = rates[last_true_idx]
 
         # Return last lr if step is above the set threshold
         lr = rates[-1] if step > step_thresholds[-1] else lr
         # Return first lr if step is below the second threshold - first is initial lr
         lr = rates[0] if step < step_thresholds[1] else lr
 
-        return np.tile(lr, len(self.base_lrs))  # hack?
+        # Return learning rate list of the same size as base_lrs
+        return [lr] * len(self.base_lrs)

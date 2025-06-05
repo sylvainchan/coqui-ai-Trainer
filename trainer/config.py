@@ -21,7 +21,7 @@ class TrainerArgs(Coqpit):
     restore_path: str = field(
         default="",
         metadata={
-            "help": "Path to a model checkpoit. Restore the model with the given checkpoint and start a new training."
+            "help": "Path to a model checkpoint. Restore the model with the given checkpoint and start a new training."
         },
     )
     best_path: str = field(
