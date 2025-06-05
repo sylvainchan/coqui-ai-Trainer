@@ -1,11 +1,7 @@
-import time
-
 import pytest
 import torch
 
-from tests.utils.mnist import MnistModel, MnistModelConfig
-from trainer import Trainer, TrainerArgs
-from trainer.generic_utils import KeepAverage
+from tests.utils.mnist import MnistModel, MnistModelConfig, create_trainer, run_steps
 from trainer.torch import StepwiseGradualLR
 
 is_cuda = torch.cuda.is_available()
@@ -49,31 +45,17 @@ def test_train_mnist(tmp_path):
     LR_1 = 1e-3
     LR_2 = 1e-4
 
-    model = MnistModel()
-    # Test StepwiseGradualLR
     config = MnistModelConfig(
         lr_scheduler="StepwiseGradualLR",
-        lr_scheduler_params={
-            "gradual_learning_rates": [
-                [0, LR_1],
-                [2, LR_2],
-            ]
-        },
+        lr_scheduler_params={"gradual_learning_rates": [(0, LR_1), (2, LR_2)]},
         scheduler_after_epoch=False,
     )
-    trainer = Trainer(TrainerArgs(), config, output_path=tmp_path, model=model, gpu=0 if is_cuda else None)
-    trainer.train_loader = trainer.get_train_dataloader(
-        trainer.training_assets,
-        trainer.train_samples,
-        verbose=True,
-    )
-    trainer.keep_avg_train = KeepAverage()
+    trainer = create_trainer(config, MnistModel(), tmp_path, gpu=0 if is_cuda else None)
 
-    lr_0 = trainer.scheduler.get_lr()
-    trainer.train_step(next(iter(trainer.train_loader)), len(trainer.train_loader), 0, time.time())
-    lr_1 = trainer.scheduler.get_lr()
-    trainer.train_step(next(iter(trainer.train_loader)), len(trainer.train_loader), 1, time.time())
-    lr_2 = trainer.scheduler.get_lr()
-    assert lr_0 == [LR_1]
-    assert lr_1 == [LR_1]
-    assert lr_2 == [LR_2]
+    assert trainer.scheduler.get_lr() == [LR_1]
+
+    run_steps(trainer, 0, 1)
+    assert trainer.scheduler.get_lr() == [LR_1]
+
+    run_steps(trainer, 1, 2)
+    assert trainer.scheduler.get_lr() == [LR_2]

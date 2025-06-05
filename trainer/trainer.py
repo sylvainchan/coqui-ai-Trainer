@@ -600,7 +600,8 @@ class Trainer:
             else:
                 obj.load_state_dict(states)
 
-        logger.info(" > Restoring from %s ...", os.path.basename(self.args.restore_path))
+        verb = "Continuing" if self.continue_run else "Restoring"
+        logger.info(" > %s from %s ...", verb, os.path.basename(self.args.restore_path))
         checkpoint = load_fsspec(self.args.restore_path, map_location="cpu")
 
         try:
@@ -683,7 +684,7 @@ class Trainer:
         return self.wrapped_model
 
     def get_train_dataloader(
-        self, training_assets: dict[str, Any], samples: list[Any] | None, *, verbose: bool
+        self, training_assets: dict[str, Any], samples: list[Any] | None, *, verbose: bool = True
     ) -> DataLoader[Any]:
         """Initialize and return a training data loader.
 
