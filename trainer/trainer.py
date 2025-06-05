@@ -694,9 +694,9 @@ class Trainer:
             rank=self.args.rank,
         )
 
-        assert (
-            len(loader) > 0
-        ), " ❗ len(DataLoader) returns 0. Make sure your dataset is not empty or len(dataset) > 0. "
+        assert len(loader) > 0, (
+            " ❗ len(DataLoader) returns 0. Make sure your dataset is not empty or len(dataset) > 0. "
+        )
         return loader
 
     def _get_model(self) -> TrainerModel:
@@ -1355,7 +1355,7 @@ class Trainer:
         return self._get_model().eval_step(*input_args)
 
     def eval_step(
-        self, batch: dict[str, Any], step: int
+        self, batch: dict[str, Any] | list[Any], step: int
     ) -> tuple[dict[str, Any] | list[dict[str, Any]] | None, dict[str, Any] | None]:
         """Perform a evaluation step on a batch of inputs and log the process.
 
