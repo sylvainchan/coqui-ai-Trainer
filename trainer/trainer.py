@@ -335,9 +335,8 @@ class Trainer:
 
         # setup scheduler
         self.scheduler = self.get_scheduler(self.model, self.config, self.optimizer)
-        self.scheduler = self.restore_scheduler(
-            self.scheduler, self.args, self.config, self.restore_epoch, self.restore_step
-        )
+        if self.scheduler is not None and self.args.continue_path:
+            self.restore_scheduler(self.scheduler, self.config, self.restore_epoch, self.restore_step)
 
         # DISTRIBUTED
         self.wrapped_model: TrainerModel | None = None
@@ -1821,33 +1820,26 @@ class Trainer:
 
     @staticmethod
     def restore_scheduler(
-        scheduler: LRScheduler | list[LRScheduler] | dict[str, LRScheduler] | None,
-        args: TrainerArgs,
+        scheduler: LRScheduler | list[LRScheduler] | dict[str, LRScheduler],
         config: TrainerConfig,
         restore_epoch: int,
         restore_step: int,
-    ) -> LRScheduler | list[LRScheduler] | dict[str, LRScheduler] | None:
+    ) -> None:
         """Restore scheduler wrt restored model."""
-        if scheduler is not None and args.continue_path:
-            if isinstance(scheduler, list):
-                for s in scheduler:
-                    if s is not None:
-                        if config.scheduler_after_epoch:
-                            s.last_epoch = restore_epoch
-                        else:
-                            s.last_epoch = restore_step
-            elif isinstance(scheduler, dict):
-                for s in scheduler.values():
-                    if s is not None:
-                        if config.scheduler_after_epoch:
-                            s.last_epoch = restore_epoch
-                        else:
-                            s.last_epoch = restore_step
-            elif config.scheduler_after_epoch:
-                scheduler.last_epoch = restore_epoch
-            else:
-                scheduler.last_epoch = restore_step
-        return scheduler
+
+        def _restore_scheduler(s: LRScheduler):
+            s.last_epoch = restore_epoch if config.scheduler_after_epoch else restore_step
+
+        if isinstance(scheduler, list):
+            for s in scheduler:
+                if s is not None:
+                    _restore_scheduler(s)
+        elif isinstance(scheduler, dict):
+            for s in scheduler.values():
+                if s is not None:
+                    _restore_scheduler(s)
+        else:
+            _restore_scheduler(scheduler)
 
     @staticmethod
     def get_criterion(model: TrainerModel) -> nn.Module | list[nn.Module]:
