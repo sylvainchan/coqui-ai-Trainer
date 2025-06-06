@@ -236,8 +236,6 @@ class Trainer:
 
         self.total_steps_done = 0
         self.epochs_done = 0
-        self.restore_step = 0
-        self.restore_epoch = 0
         self.best_loss: LossDict | float = {
             "train_loss": float("inf"),
             "eval_loss": float("inf") if self.config.run_eval else None,
@@ -336,7 +334,8 @@ class Trainer:
         # setup scheduler
         self.scheduler = self.get_scheduler(self.model, self.config, self.optimizer)
         if self.scheduler is not None and self.continue_run:
-            self.restore_scheduler(self.scheduler, self.config, self.restore_epoch, self.restore_step)
+            last_epoch = self.epochs_done if self.config.scheduler_after_epoch else self.total_steps_done
+            self.restore_scheduler(self.scheduler, last_epoch)
 
         # DISTRIBUTED
         self.wrapped_model: TrainerModel | None = None
@@ -622,12 +621,12 @@ class Trainer:
             self.model.load_state_dict(model_dict)
             del model_dict
 
-        self.restore_step = checkpoint["step"] + 1  # +1 not to immediately checkpoint if the model is restored
-        self.restore_epoch = checkpoint["epoch"]
+        self.total_steps_done = checkpoint["step"] + 1  # +1 not to immediately checkpoint if the model is restored
+        self.epochs_done = checkpoint["epoch"]
 
         if not self.continue_run:
-            self.restore_step = 0
-            self.restore_epoch = 0
+            self.total_steps_done = 0
+            self.epochs_done = 0
             # Use LR read from the checkpoint if we continue a training run
             self.reset_lr()
 
@@ -1466,7 +1465,7 @@ class Trainer:
         Restore from the args.best_path if provided else from the model
         (`args.continue_path`) used for resuming the training.
         """
-        if self.continue_run and (self.restore_step != 0 or self.args.best_path):
+        if self.continue_run and (self.total_steps_done != 0 or self.args.best_path):
             logger.info(" > Restoring best loss from %s ...", os.path.basename(self.args.best_path))
             ch = load_fsspec(self.args.restore_path, map_location="cpu")
             if "model_loss" in ch:
@@ -1517,9 +1516,7 @@ class Trainer:
         """🏃 train -> evaluate -> test for the number of epochs."""
         self._restore_best_loss()
 
-        self.total_steps_done = self.restore_step
-
-        for epoch in range(self.restore_epoch, self.config.epochs):
+        for epoch in range(self.epochs_done, self.config.epochs):
             if self.num_gpus > 1:
                 # let all processes sync up before starting with a new epoch of training
                 dist.barrier()
@@ -1799,27 +1796,18 @@ class Trainer:
             return get_scheduler(lr_scheduler, lr_scheduler_params, optimizer)  # type: ignore[arg-type]
 
     @staticmethod
-    def restore_scheduler(
-        scheduler: LRScheduler | list[LRScheduler] | dict[str, LRScheduler],
-        config: TrainerConfig,
-        restore_epoch: int,
-        restore_step: int,
-    ) -> None:
+    def restore_scheduler(scheduler: LRScheduler | list[LRScheduler] | dict[str, LRScheduler], last_epoch: int) -> None:
         """Restore scheduler wrt restored model."""
-
-        def _restore_scheduler(s: LRScheduler):
-            s.last_epoch = restore_epoch if config.scheduler_after_epoch else restore_step
-
         if isinstance(scheduler, list):
             for s in scheduler:
                 if s is not None:
-                    _restore_scheduler(s)
+                    s.last_epoch = last_epoch
         elif isinstance(scheduler, dict):
             for s in scheduler.values():
                 if s is not None:
-                    _restore_scheduler(s)
+                    s.last_epoch = last_epoch
         else:
-            _restore_scheduler(scheduler)
+            scheduler.last_epoch = last_epoch
 
     @staticmethod
     def get_criterion(model: TrainerModel) -> nn.Module | list[nn.Module]:
