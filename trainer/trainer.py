@@ -638,7 +638,9 @@ class Trainer:
             model.load_state_dict(model_dict)
             del model_dict
 
-        optimizer = self.restore_lr(config, self.args, model, optimizer)
+        # Use LR read from the checkpoint if we continue a training run
+        if not self.args.continue_path:
+            self.reset_lr(config, model, optimizer)
 
         logger.info(" > Model restored from step %i", checkpoint["step"])
         restore_step = checkpoint["step"] + 1  # +1 not to immediately checkpoint if the model is restored
@@ -646,27 +648,24 @@ class Trainer:
         torch.cuda.empty_cache()
         return model, optimizer, scaler, restore_step, restore_epoch
 
-    def restore_lr(
+    def reset_lr(
         self,
         config: TrainerConfig,
-        args: TrainerArgs,
         model: TrainerModel,
         optimizer: torch.optim.Optimizer | list[torch.optim.Optimizer],
-    ) -> torch.optim.Optimizer | list[torch.optim.Optimizer]:
-        # use the same lr if continue training
-        if not args.continue_path:
-            if isinstance(optimizer, list):
-                for idx, optim in enumerate(optimizer):
-                    for group in optim.param_groups:
-                        group["lr"] = self.get_lr(model, config)[idx]  # type: ignore[index]
-            elif isinstance(optimizer, dict):
-                for optim_name, optim in optimizer.items():
-                    for group in optim.param_groups:
-                        group["lr"] = self.get_lr(model, config)[optim_name]  # type: ignore[index]
-            else:
-                for group in optimizer.param_groups:
-                    group["lr"] = self.get_lr(model, config)
-        return optimizer
+    ) -> None:
+        """Reset learning rate to default values."""
+        if isinstance(optimizer, list):
+            for idx, optim in enumerate(optimizer):
+                for group in optim.param_groups:
+                    group["lr"] = self.get_lr(model, config)[idx]  # type: ignore[index]
+        elif isinstance(optimizer, dict):
+            for optim_name, optim in optimizer.items():
+                for group in optim.param_groups:
+                    group["lr"] = self.get_lr(model, config)[optim_name]  # type: ignore[index]
+        else:
+            for group in optimizer.param_groups:
+                group["lr"] = self.get_lr(model, config)
 
     #########################
     # DATA LOADING FUNCTIONS
