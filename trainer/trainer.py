@@ -331,9 +331,7 @@ class Trainer:
 
         # restore model
         if self.args.restore_path:
-            (self.model, self.optimizer, self.scaler, self.restore_step, self.restore_epoch) = self.restore_model(
-                self.config, args.restore_path, self.model, self.optimizer, self.scaler
-            )
+            self.restore_model()
 
         # setup scheduler
         self.scheduler = self.get_scheduler(self.model, self.config, self.optimizer)
@@ -587,28 +585,13 @@ class Trainer:
             return train_samples, eval_samples, test_samples
         return None, None, None
 
-    def restore_model(
-        self,
-        config: TrainerConfig,
-        restore_path: str | os.PathLike[Any],
-        model: TrainerModel,
-        optimizer: torch.optim.Optimizer | list[torch.optim.Optimizer],
-        scaler: Optional["torch.GradScaler"] = None,
-    ) -> tuple[TrainerModel, torch.optim.Optimizer | list[torch.optim.Optimizer], "torch.GradScaler | None", int, int]:
-        """Restore training from an old run. It restores model, optimizer, AMP scaler and training stats.
+    def restore_model(self) -> None:
+        """Restore training from an old run.
 
-        Args:
-            config (TrainerConfig): Model config.
-            restore_path (str): Path to the restored training run.
-            model (TrainerModel): Model to restored.
-            optimizer (torch.optim.Optimizer): Optimizer to restore.
-            scaler (torch.GradScaler, optional): AMP scaler to restore. Defaults to None.
-
-        Returns:
-            Tuple[TrainerModel, torch.optim.Optimizer, torch.GradScaler, int, int]: [description]
+        It restores model, optimizer, AMP scaler and training stats.
         """
 
-        def _restore_list_objs(states: Any, obj: Any) -> Any:
+        def _restore_list_objs(states: Any, obj: Any) -> None:
             if isinstance(obj, list):
                 for idx, state in enumerate(states):
                     obj[idx].load_state_dict(state)
@@ -617,57 +600,53 @@ class Trainer:
                     obj[key].load_state_dict(state)
             else:
                 obj.load_state_dict(states)
-            return obj
 
-        logger.info(" > Restoring from %s ...", os.path.basename(restore_path))
-        checkpoint = load_fsspec(restore_path, map_location="cpu")
+        logger.info(" > Restoring from %s ...", os.path.basename(self.args.restore_path))
+        checkpoint = load_fsspec(self.args.restore_path, map_location="cpu")
 
         try:
             logger.info(" > Restoring Model...")
-            model.load_state_dict(checkpoint["model"])
+            self.model.load_state_dict(checkpoint["model"])
             logger.info(" > Restoring Optimizer...")
             try:
-                optimizer = _restore_list_objs(checkpoint["optimizer"], optimizer)
+                _restore_list_objs(checkpoint["optimizer"], self.optimizer)
             except (KeyError, TypeError, RuntimeError):
                 logger.info(" > Optimizer is not compatible with the restored model.")
             if "scaler" in checkpoint and self.use_amp_scaler and checkpoint["scaler"]:
                 logger.info(" > Restoring Scaler...")
-                scaler = _restore_list_objs(checkpoint["scaler"], scaler)
+                _restore_list_objs(checkpoint["scaler"], self.scaler)
         except (KeyError, RuntimeError, ValueError):
             logger.info(" > Partial model initialization...")
-            model_dict = model.state_dict()
-            model_dict = set_partial_state_dict(model_dict, checkpoint["model"], config)
-            model.load_state_dict(model_dict)
+            model_dict = self.model.state_dict()
+            model_dict = set_partial_state_dict(model_dict, checkpoint["model"], self.config)
+            self.model.load_state_dict(model_dict)
             del model_dict
 
-        # Use LR read from the checkpoint if we continue a training run
+        self.restore_step = checkpoint["step"] + 1  # +1 not to immediately checkpoint if the model is restored
+        self.restore_epoch = checkpoint["epoch"]
+
         if not self.continue_run:
-            self.reset_lr(config, model, optimizer)
+            self.restore_step = 0
+            self.restore_epoch = 0
+            # Use LR read from the checkpoint if we continue a training run
+            self.reset_lr()
 
         logger.info(" > Model restored from step %i", checkpoint["step"])
-        restore_step = checkpoint["step"] + 1  # +1 not to immediately checkpoint if the model is restored
-        restore_epoch = checkpoint["epoch"]
         torch.cuda.empty_cache()
-        return model, optimizer, scaler, restore_step, restore_epoch
 
-    def reset_lr(
-        self,
-        config: TrainerConfig,
-        model: TrainerModel,
-        optimizer: torch.optim.Optimizer | list[torch.optim.Optimizer],
-    ) -> None:
+    def reset_lr(self) -> None:
         """Reset learning rate to default values."""
-        if isinstance(optimizer, list):
-            for idx, optim in enumerate(optimizer):
+        if isinstance(self.optimizer, list):
+            for idx, optim in enumerate(self.optimizer):
                 for group in optim.param_groups:
-                    group["lr"] = self.get_lr(model, config)[idx]  # type: ignore[index]
-        elif isinstance(optimizer, dict):
-            for optim_name, optim in optimizer.items():
+                    group["lr"] = self.get_lr(self.model, self.config)[idx]  # type: ignore[index]
+        elif isinstance(self.optimizer, dict):
+            for optim_name, optim in self.optimizer.items():
                 for group in optim.param_groups:
-                    group["lr"] = self.get_lr(model, config)[optim_name]  # type: ignore[index]
+                    group["lr"] = self.get_lr(self.model, self.config)[optim_name]  # type: ignore[index]
         else:
-            for group in optimizer.param_groups:
-                group["lr"] = self.get_lr(model, config)
+            for group in self.optimizer.param_groups:
+                group["lr"] = self.get_lr(self.model, self.config)
 
     #########################
     # DATA LOADING FUNCTIONS
