@@ -316,8 +316,9 @@ class Trainer:
             elif isinstance(self.criterion, nn.Module):
                 self.criterion.cuda()
 
-        # setup optimizer
+        # setup optimizer and scheduler
         self.optimizer = self.get_optimizer(self.model, self.config)
+        self.scheduler = self.get_scheduler(self.model, self.config, self.optimizer)
 
         # CALLBACK
         self.callbacks = TrainerCallback()
@@ -330,12 +331,6 @@ class Trainer:
         # restore model
         if self.args.restore_path:
             self.restore_model()
-
-        # setup scheduler
-        self.scheduler = self.get_scheduler(self.model, self.config, self.optimizer)
-        if self.scheduler is not None and self.continue_run:
-            last_epoch = self.epochs_done if self.config.scheduler_after_epoch else self.total_steps_done
-            self.restore_scheduler(self.scheduler, last_epoch)
 
         # DISTRIBUTED
         self.wrapped_model: TrainerModel | None = None
@@ -607,14 +602,18 @@ class Trainer:
         try:
             logger.info(" > Restoring Model...")
             self.model.load_state_dict(checkpoint["model"])
-            logger.info(" > Restoring Optimizer...")
-            try:
-                _restore_list_objs(checkpoint["optimizer"], self.optimizer)
-            except (KeyError, TypeError, RuntimeError):
-                logger.info(" > Optimizer is not compatible with the restored model.")
-            if "scaler" in checkpoint and self.use_amp_scaler and checkpoint["scaler"]:
-                logger.info(" > Restoring Scaler...")
-                _restore_list_objs(checkpoint["scaler"], self.scaler)
+            if self.continue_run:
+                logger.info(" > Restoring Optimizer...")
+                try:
+                    _restore_list_objs(checkpoint["optimizer"], self.optimizer)
+                except (KeyError, TypeError, RuntimeError):
+                    logger.info(" > Optimizer is not compatible with the restored model.")
+                if checkpoint.get("scheduler"):
+                    logger.info(" > Restoring Scheduler...")
+                    _restore_list_objs(checkpoint["scheduler"], self.scheduler)
+                if "scaler" in checkpoint and self.use_amp_scaler and checkpoint["scaler"]:
+                    logger.info(" > Restoring Scaler...")
+                    _restore_list_objs(checkpoint["scaler"], self.scaler)
         except (KeyError, RuntimeError, ValueError):
             logger.info(" > Partial model initialization...")
             model_dict = self.model.state_dict()
@@ -1664,6 +1663,7 @@ class Trainer:
             self.config,
             self._get_model(),
             self.optimizer,
+            self.scheduler,
             self.scaler if self.use_amp_scaler else None,
             self.total_steps_done,
             self.epochs_done,
@@ -1683,6 +1683,7 @@ class Trainer:
             self.config,
             self._get_model(),
             self.optimizer,
+            self.scheduler,
             self.scaler if self.use_amp_scaler else None,
             self.total_steps_done,
             self.epochs_done,
@@ -1795,20 +1796,6 @@ class Trainer:
             lr_scheduler = config.lr_scheduler
             lr_scheduler_params = config.lr_scheduler_params
             return get_scheduler(lr_scheduler, lr_scheduler_params, optimizer)  # type: ignore[arg-type]
-
-    @staticmethod
-    def restore_scheduler(scheduler: LRScheduler | list[LRScheduler] | dict[str, LRScheduler], last_epoch: int) -> None:
-        """Restore scheduler wrt restored model."""
-        if isinstance(scheduler, list):
-            for s in scheduler:
-                if s is not None:
-                    s.last_epoch = last_epoch
-        elif isinstance(scheduler, dict):
-            for s in scheduler.values():
-                if s is not None:
-                    s.last_epoch = last_epoch
-        else:
-            scheduler.last_epoch = last_epoch
 
     @staticmethod
     def get_criterion(model: TrainerModel) -> nn.Module | list[nn.Module]:

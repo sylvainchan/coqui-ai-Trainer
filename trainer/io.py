@@ -14,7 +14,7 @@ from coqpit import Coqpit
 from torch.optim.optimizer import StateDict
 from torch.types import Storage
 
-from trainer._types import LossDict
+from trainer._types import LossDict, LRScheduler
 from trainer.generic_utils import is_pytorch_at_least_2_4
 from trainer.logger import logger
 from trainer.model import TrainerModel
@@ -127,6 +127,7 @@ def save_model(
     config: dict[str, Any] | Coqpit,
     model: TrainerModel,
     optimizer: torch.optim.Optimizer | list[torch.optim.Optimizer],
+    scheduler: LRScheduler | list[LRScheduler] | dict[str, LRScheduler] | None,
     scaler: "torch.GradScaler | None",
     current_step: int,
     epoch: int,
@@ -143,6 +144,14 @@ def save_model(
     else:
         optimizer_state = optimizer.state_dict() if optimizer is not None else None
 
+    scheduler_state: StateDict | list[StateDict] | dict[str, StateDict] | None
+    if isinstance(scheduler, list):
+        scheduler_state = [optim.state_dict() for optim in scheduler]
+    elif isinstance(scheduler, dict):
+        scheduler_state = {k: v.state_dict() for k, v in scheduler.items()}
+    else:
+        scheduler_state = scheduler.state_dict() if scheduler is not None else None
+
     scaler_state: StateDict | list[StateDict] | None
     if isinstance(scaler, list):
         scaler_state = [s.state_dict() for s in scaler]
@@ -156,6 +165,7 @@ def save_model(
         "config": config,
         "model": model_state,
         "optimizer": optimizer_state,
+        "scheduler": scheduler_state,
         "scaler": scaler_state,
         "step": current_step,
         "epoch": epoch,
@@ -172,6 +182,7 @@ def save_checkpoint(
     config: dict[str, Any] | Coqpit,
     model: TrainerModel,
     optimizer: torch.optim.Optimizer | list[torch.optim.Optimizer],
+    scheduler: LRScheduler | list[LRScheduler] | dict[str, LRScheduler] | None,
     scaler: "torch.GradScaler | None",
     current_step: int,
     epoch: int,
@@ -188,6 +199,7 @@ def save_checkpoint(
         config,
         model,
         optimizer,
+        scheduler,
         scaler,
         current_step,
         epoch,
@@ -205,6 +217,7 @@ def save_best_model(
     config: dict[str, Any] | Coqpit,
     model: TrainerModel,
     optimizer: torch.optim.Optimizer | list[torch.optim.Optimizer],
+    scheduler: LRScheduler | list[LRScheduler] | dict[str, LRScheduler] | None,
     scaler: "torch.GradScaler | None",
     current_step: int,
     epoch: int,
@@ -234,6 +247,7 @@ def save_best_model(
             config,
             model,
             optimizer,
+            scheduler,
             scaler,
             current_step,
             epoch,
