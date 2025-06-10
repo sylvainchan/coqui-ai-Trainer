@@ -1095,6 +1095,21 @@ class Trainer:
         outputs: dict[str, Any] | list[dict[str, Any]]
         loss_dict = {}
 
+        # log learning rates (do it before they're updated in optimize())
+        lrs = {}
+        if isinstance(self.optimizer, list):
+            for idx, optimizer in enumerate(self.optimizer):
+                current_lr = optimizer.param_groups[0]["lr"]
+                lrs.update({f"current_lr_{idx}": current_lr})
+        elif isinstance(self.optimizer, dict):
+            for key, optimizer in self.optimizer.items():
+                current_lr = optimizer.param_groups[0]["lr"]
+                lrs.update({f"current_lr_{key}": current_lr})
+        else:
+            current_lr = self.optimizer.param_groups[0]["lr"]
+            lrs = {"current_lr": current_lr}
+        loss_dict.update(lrs)
+
         # OPTIMIZATION
         try:
             # custom optimize for the model
@@ -1195,22 +1210,7 @@ class Trainer:
 
         # print training progress
         if self.total_steps_done % self.config.print_step == 0:
-            # log learning rates
-            lrs = {}
-            if isinstance(self.optimizer, list):
-                for idx, optimizer in enumerate(self.optimizer):
-                    current_lr = optimizer.param_groups[0]["lr"]
-                    lrs.update({f"current_lr_{idx}": current_lr})
-            elif isinstance(self.optimizer, dict):
-                for key, optimizer in self.optimizer.items():
-                    current_lr = optimizer.param_groups[0]["lr"]
-                    lrs.update({f"current_lr_{key}": current_lr})
-            else:
-                current_lr = self.optimizer.param_groups[0]["lr"]
-                lrs = {"current_lr": current_lr}
-
             # log run-time stats
-            loss_dict.update(lrs)
             loss_dict.update(
                 {
                     "step_time": round(step_time, 4),
