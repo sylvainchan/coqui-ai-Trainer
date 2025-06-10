@@ -128,17 +128,17 @@ def test_lr_continue_vs_restore_noam(tmp_path):
         lr_scheduler="NoamLR",
         lr_scheduler_params={"warmup_steps": warmup_steps},
         scheduler_after_epoch=False,
-        save_step=warmup_steps,
+        save_step=warmup_steps - 1,
     )
 
     # 1. Train for a few steps and save checkpoint
     trainer = create_trainer(config, MnistModel(), tmp_path, gpu)
 
-    run_steps(trainer, 0, warmup_steps)
-    assert trainer.scheduler.get_lr() == pytest.approx([LR_1])
+    run_steps(trainer, 0, warmup_steps - 1)
+    assert trainer.scheduler.get_last_lr() == pytest.approx([LR_1])
 
-    run_steps(trainer, warmup_steps, warmup_steps + 1)
-    assert trainer.scheduler.get_lr() == pytest.approx([LR_2])
+    run_steps(trainer, warmup_steps - 1, warmup_steps)
+    assert trainer.scheduler.get_last_lr() == pytest.approx([LR_2])
 
     # 2. Continue from checkpoint (should preserve LR state)
     continue_path = max(tmp_path.iterdir(), key=lambda p: p.stat().st_mtime)
@@ -147,15 +147,15 @@ def test_lr_continue_vs_restore_noam(tmp_path):
     )
 
     last_epoch = trainer_continue.scheduler.last_epoch
-    assert last_epoch == warmup_steps + 1
-    assert trainer_continue.scheduler.get_lr() == [LR_2]
+    assert last_epoch == warmup_steps
+    assert trainer_continue.scheduler.get_last_lr() == [LR_2]
     run_steps(trainer_continue, last_epoch, last_epoch + 1)
-    assert trainer_continue.scheduler.get_lr() == [LR_3]
+    assert trainer_continue.scheduler.get_last_lr() == [LR_3]
 
     # 3. Restore from checkpoint (should reset LR)
-    checkpoint_path = continue_path / f"checkpoint_{warmup_steps}.pth"
+    checkpoint_path = continue_path / f"checkpoint_{warmup_steps - 1}.pth"
     restored_path = tmp_path / "restored"
     trainer_restored = create_trainer(config, MnistModel(), restored_path, gpu, restore_path=str(checkpoint_path))
 
     assert trainer_restored.scheduler.last_epoch == 0
-    assert trainer_restored.scheduler.get_lr() == pytest.approx([LR_0])
+    assert trainer_restored.scheduler.get_last_lr() == pytest.approx([LR_0])
