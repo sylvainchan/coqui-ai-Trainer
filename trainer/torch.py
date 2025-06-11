@@ -1,7 +1,13 @@
+from bisect import bisect_right
 from collections.abc import Iterator
 
 import torch
 from torch.utils.data.distributed import DistributedSampler
+
+from trainer.generic_utils import is_pytorch_at_least_2_4
+
+if is_pytorch_at_least_2_4():
+    from torch.optim.lr_scheduler import _warn_get_lr_called_within_step
 
 
 class DistributedSamplerWrapper(DistributedSampler):
@@ -81,11 +87,14 @@ class NoamLR(torch.optim.lr_scheduler._LRScheduler):
         super().__init__(optimizer, last_epoch)
 
     def get_lr(self) -> list[float]:
-        step = max(self.last_epoch, 1)
-        return [
-            base_lr * self.warmup_steps**0.5 * min(step * self.warmup_steps**-1.5, step**-0.5)
-            for base_lr in self.base_lrs
-        ]
+        if is_pytorch_at_least_2_4():
+            _warn_get_lr_called_within_step(self)
+        return self._get_closed_form_lr()
+
+    def _get_closed_form_lr(self):
+        step = self.last_epoch + 1
+        scale = self.warmup_steps**0.5 * min(step * self.warmup_steps**-1.5, step**-0.5)
+        return [base_lr * scale for base_lr in self.base_lrs]
 
 
 # pylint: disable=protected-access
@@ -96,23 +105,26 @@ class StepwiseGradualLR(torch.optim.lr_scheduler._LRScheduler):
     """
 
     def __init__(self, optimizer: torch.optim.Optimizer, gradual_learning_rates, last_epoch: int = -1) -> None:
-        self.gradual_learning_rates = gradual_learning_rates
+        self.step_thresholds, self.learning_rates = zip(*gradual_learning_rates, strict=True)
         super().__init__(optimizer, last_epoch)
 
     def get_lr(self):
-        step = max(self.last_epoch, 1)
-        step_thresholds = [x[0] for x in self.gradual_learning_rates]
-        rates = [x[1] for x in self.gradual_learning_rates]
+        if is_pytorch_at_least_2_4():
+            _warn_get_lr_called_within_step(self)
 
-        # Ignore steps larger than the last step in the list
-        valid_indices = [i for i, threshold in enumerate(step_thresholds) if threshold <= step]
-        last_true_idx = valid_indices[-1] if valid_indices else 0
-        lr = rates[last_true_idx]
+        if self.last_epoch not in self.step_thresholds:
+            return [group["lr"] for group in self.optimizer.param_groups]
 
-        # Return last lr if step is above the set threshold
-        lr = rates[-1] if step > step_thresholds[-1] else lr
-        # Return first lr if step is below the second threshold - first is initial lr
-        lr = rates[0] if step < step_thresholds[1] else lr
+        index = self.step_thresholds.index(self.last_epoch)
+        lr = self.learning_rates[index]
+        return [lr for _ in self.optimizer.param_groups]
 
-        # Return learning rate list of the same size as base_lrs
-        return [lr] * len(self.base_lrs)
+    def _get_closed_form_lr(self):
+        index = self._find_index(self.last_epoch)
+        lr = self.learning_rates[index]
+        return [lr for _ in self.base_lrs]
+
+    def _find_index(self, step: int) -> int:
+        # Locate the most recent threshold <= step
+        index = bisect_right(self.step_thresholds, step) - 1
+        return max(0, min(index, len(self.learning_rates) - 1))

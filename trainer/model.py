@@ -4,6 +4,8 @@ from typing import TYPE_CHECKING, Any
 import torch
 from torch import nn
 
+from trainer._types import ValueListDict
+
 if TYPE_CHECKING:
     from trainer.trainer import Trainer
 
@@ -223,9 +225,7 @@ class TrainerModel(ABC, nn.Module):
     def on_train_epoch_end(self, trainer: "Trainer") -> None: ...
 
     @staticmethod
-    def before_backward_pass(
-        loss_dict: dict[str, Any], optimizer: torch.optim.Optimizer | list[torch.optim.Optimizer]
-    ) -> None: ...
+    def before_backward_pass(loss_dict: dict[str, Any], optimizer: ValueListDict[torch.optim.Optimizer]) -> None: ...
 
     @staticmethod
     def before_gradient_clipping() -> None: ...

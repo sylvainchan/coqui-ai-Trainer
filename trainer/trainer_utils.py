@@ -119,7 +119,9 @@ def setup_torch_training_env(
 
 
 def get_scheduler(
-    lr_scheduler: str | None, lr_scheduler_params: dict[str, Any], optimizer: torch.optim.Optimizer
+    lr_scheduler: str | None,
+    lr_scheduler_params: dict[str, Any],
+    optimizer: torch.optim.Optimizer,
 ) -> torch.optim.lr_scheduler._LRScheduler | None:  # pylint: disable=protected-access
     """Find, initialize and return a Torch scheduler.
 

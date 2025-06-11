@@ -1,14 +1,15 @@
 import datetime
 import os
 import subprocess
-from collections.abc import ItemsView
+from collections.abc import Callable, ItemsView, Iterator
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
 import fsspec
 import torch
 from packaging.version import Version
 
+from trainer._types import _T, ValueListDict
 from trainer.config import TrainerConfig
 from trainer.logger import logger
 
@@ -91,7 +92,7 @@ def count_parameters(model: torch.nn.Module) -> int:
 
 
 def set_partial_state_dict(
-    model_dict: dict[str, Any], checkpoint_state: dict[str, Any], c: TrainerConfig
+    model_dict: dict[str, Any], checkpoint_state: dict[str, Any], config: TrainerConfig
 ) -> dict[str, Any]:
     # Partial initialization: if there is a mismatch with new and old layer, it is skipped.
     for k in checkpoint_state:
@@ -108,13 +109,38 @@ def set_partial_state_dict(
     # 2. filter out different size layers
     pretrained_dict = {k: v for k, v in pretrained_dict.items() if v.numel() == model_dict[k].numel()}
     # 3. skip reinit layers
-    if c.has("reinit_layers") and c.reinit_layers is not None:
-        for reinit_layer_name in c.reinit_layers:
+    if config.has("reinit_layers") and config.reinit_layers is not None:
+        for reinit_layer_name in config.reinit_layers:
             pretrained_dict = {k: v for k, v in pretrained_dict.items() if reinit_layer_name not in k}
     # 4. overwrite entries in the existing state dict
     model_dict.update(pretrained_dict)
     logger.info(" | > %i / %i layers are restored.", len(pretrained_dict), len(model_dict))
     return model_dict
+
+
+def iter_value_list_dict(obj: ValueListDict[_T]) -> Iterator[tuple[int | str | None, _T]]:
+    """Iterate over objects that can be single values, lists or dicts.
+
+    Especially used for optimizers and schedulers.
+    """
+    if isinstance(obj, list):
+        yield from enumerate(obj)
+    elif isinstance(obj, dict):
+        yield from obj.items()
+    else:
+        yield None, obj
+
+
+_R = TypeVar("_R")
+
+
+def map_value_list_dict(obj: ValueListDict[_T], fn: Callable[[_T], _R]) -> ValueListDict[_R]:
+    """Apply `fn` to obj, list of obj, or dict of obj and return the same structure."""
+    if isinstance(obj, list):
+        return [fn(v) for v in obj]
+    if isinstance(obj, dict):
+        return {k: fn(v) for k, v in obj.items()}
+    return fn(obj)
 
 
 class KeepAverage:

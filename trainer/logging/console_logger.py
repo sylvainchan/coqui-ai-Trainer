@@ -46,7 +46,7 @@ class ConsoleLogger:
     @rank_zero_only
     def print_epoch_start(self, epoch: int, max_epoch: int, output_path: str | os.PathLike[Any] | None = None) -> None:
         self.log_with_flush(
-            f"\n{tcolors.UNDERLINE}{tcolors.BOLD} > EPOCH: {epoch}/{max_epoch}{tcolors.ENDC}",
+            f"\n{tcolors.UNDERLINE}{tcolors.BOLD} > EPOCH: {epoch}/{max_epoch - 1}{tcolors.ENDC}",
         )
         if output_path is not None:
             self.log_with_flush(f" --> {output_path}")
@@ -66,7 +66,7 @@ class ConsoleLogger:
     ) -> None:
         indent = "     | > "
         self.log_with_flush("")
-        log_text = f"{tcolors.BOLD}   --> TIME: {self.get_time()} -- STEP: {step}/{batch_steps} -- GLOBAL_STEP: {global_step}{tcolors.ENDC}\n"
+        log_text = f"{tcolors.BOLD}   --> TIME: {self.get_time()} -- STEP: {step}/{batch_steps - 1} -- GLOBAL_STEP: {global_step}{tcolors.ENDC}\n"
         for key, value in loss_dict.items():
             # print the avg value if given
             if f"avg_{key}" in avg_loss_dict:

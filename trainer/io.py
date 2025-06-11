@@ -14,8 +14,8 @@ from coqpit import Coqpit
 from torch.optim.optimizer import StateDict
 from torch.types import Storage
 
-from trainer._types import LossDict
-from trainer.generic_utils import is_pytorch_at_least_2_4
+from trainer._types import LossDict, LRScheduler, ValueListDict
+from trainer.generic_utils import is_pytorch_at_least_2_4, map_value_list_dict
 from trainer.logger import logger
 from trainer.model import TrainerModel
 
@@ -126,24 +126,26 @@ def save_fsspec(state: Any, path: str | os.PathLike[Any], **kwargs: Any) -> None
 def save_model(
     config: dict[str, Any] | Coqpit,
     model: TrainerModel,
-    optimizer: torch.optim.Optimizer | list[torch.optim.Optimizer],
-    scaler: "torch.GradScaler | None",
+    output_path: str | os.PathLike[Any],
+    *,
     current_step: int,
     epoch: int,
-    output_path: str | os.PathLike[Any],
+    optimizer: ValueListDict[torch.optim.Optimizer] | None = None,
+    scheduler: ValueListDict[LRScheduler] | None = None,
+    scaler: "torch.GradScaler | None" = None,
     save_func: Callable[[Any, str | os.PathLike[Any]], None] | None = None,
     **kwargs: Any,
 ) -> None:
     model_state = model.state_dict()
-    optimizer_state: StateDict | list[StateDict] | None
-    if isinstance(optimizer, list):
-        optimizer_state = [optim.state_dict() for optim in optimizer]
-    elif isinstance(optimizer, dict):
-        optimizer_state = {k: v.state_dict() for k, v in optimizer.items()}
-    else:
-        optimizer_state = optimizer.state_dict() if optimizer is not None else None
+    optimizer_state: ValueListDict[StateDict] | None = None
+    if optimizer is not None:
+        optimizer_state = map_value_list_dict(optimizer, lambda o: o.state_dict())
 
-    scaler_state: StateDict | list[StateDict] | None
+    scheduler_state: ValueListDict[StateDict] | None = None
+    if scheduler is not None:
+        scheduler_state = map_value_list_dict(scheduler, lambda s: s.state_dict())
+
+    scaler_state: StateDict | list[StateDict] | None = None
     if isinstance(scaler, list):
         scaler_state = [s.state_dict() for s in scaler]
     else:
@@ -156,6 +158,7 @@ def save_model(
         "config": config,
         "model": model_state,
         "optimizer": optimizer_state,
+        "scheduler": scheduler_state,
         "scaler": scaler_state,
         "step": current_step,
         "epoch": epoch,
@@ -171,11 +174,13 @@ def save_model(
 def save_checkpoint(
     config: dict[str, Any] | Coqpit,
     model: TrainerModel,
-    optimizer: torch.optim.Optimizer | list[torch.optim.Optimizer],
-    scaler: "torch.GradScaler | None",
+    output_folder: str | os.PathLike[Any],
+    *,
     current_step: int,
     epoch: int,
-    output_folder: str | os.PathLike[Any],
+    optimizer: ValueListDict[torch.optim.Optimizer] | None = None,
+    scheduler: ValueListDict[LRScheduler] | None = None,
+    scaler: "torch.GradScaler | None" = None,
     save_n_checkpoints: int | None = None,
     save_func: Callable[[Any, str | os.PathLike[Any]], None] | None = None,
     **kwargs: Any,
@@ -187,11 +192,12 @@ def save_checkpoint(
     save_model(
         config,
         model,
-        optimizer,
-        scaler,
-        current_step,
-        epoch,
         checkpoint_path,
+        current_step=current_step,
+        epoch=epoch,
+        optimizer=optimizer,
+        scheduler=scheduler,
+        scaler=scaler,
         save_func=save_func,
         **kwargs,
     )
@@ -204,12 +210,13 @@ def save_best_model(
     best_loss: LossDict | float,
     config: dict[str, Any] | Coqpit,
     model: TrainerModel,
-    optimizer: torch.optim.Optimizer | list[torch.optim.Optimizer],
-    scaler: "torch.GradScaler | None",
-    current_step: int,
-    epoch: int,
     out_path: str | os.PathLike[Any],
     *,
+    current_step: int,
+    epoch: int,
+    optimizer: ValueListDict[torch.optim.Optimizer] | None = None,
+    scheduler: ValueListDict[LRScheduler] | None = None,
+    scaler: "torch.GradScaler | None" = None,
     keep_all_best: bool = False,
     keep_after: int = 0,
     save_func: Callable[[Any, str | os.PathLike[Any]], None] | None = None,
@@ -233,11 +240,12 @@ def save_best_model(
         save_model(
             config,
             model,
-            optimizer,
-            scaler,
-            current_step,
-            epoch,
             checkpoint_path,
+            current_step=current_step,
+            epoch=epoch,
+            optimizer=optimizer,
+            scheduler=scheduler,
+            scaler=scaler,
             model_loss=current_loss,
             save_func=save_func,
             **kwargs,

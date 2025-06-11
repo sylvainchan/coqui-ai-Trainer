@@ -1,3 +1,4 @@
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -8,7 +9,8 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision.datasets import MNIST
 
-from trainer import TrainerConfig, TrainerModel
+from trainer import Trainer, TrainerArgs, TrainerConfig, TrainerModel
+from trainer.generic_utils import KeepAverage
 
 
 @dataclass
@@ -65,3 +67,18 @@ class MnistModel(TrainerModel):
         dataset.data = dataset.data[:256]
         dataset.targets = dataset.targets[:256]
         return DataLoader(dataset, batch_size=config.batch_size)
+
+
+def create_trainer(config, model, output_path, gpu, continue_path=None, restore_path=None):
+    args = TrainerArgs(continue_path=continue_path, restore_path=restore_path)
+    trainer = Trainer(args, config, output_path=output_path, model=model, gpu=gpu)
+    trainer.train_loader = trainer.get_train_dataloader(trainer.training_assets, trainer.train_samples)
+    trainer.keep_avg_train = KeepAverage()
+    return trainer
+
+
+def run_steps(trainer, start_step, end_step):
+    """Step through training manually."""
+    for step in range(start_step, end_step):
+        batch = next(iter(trainer.train_loader))
+        trainer.train_step(batch, len(trainer.train_loader), step, time.time())

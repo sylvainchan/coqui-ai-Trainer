@@ -19,7 +19,7 @@ from torch import nn
 from torch.nn.parallel import DistributedDataParallel as DDP_th
 from torch.utils.data import DataLoader
 
-from trainer._types import Callback, LossDict, LRScheduler
+from trainer._types import Callback, LossDict, LRScheduler, ValueListDict
 from trainer.callbacks import TrainerCallback
 from trainer.config import TrainerArgs, TrainerConfig
 from trainer.generic_utils import (
@@ -29,6 +29,8 @@ from trainer.generic_utils import (
     get_git_branch,
     is_pytorch_at_least_2_3,
     is_pytorch_at_least_2_4,
+    iter_value_list_dict,
+    map_value_list_dict,
     remove_experiment_folder,
     set_partial_state_dict,
     to_cuda,
@@ -189,9 +191,11 @@ class Trainer:
 
         # set the output path
         if args.continue_path:
+            self.continue_run = True
             # use the same path as the continuing run
             output_path = args.continue_path
         else:
+            self.continue_run = False
             # override the output path if it is provided
             output_path = config.output_path if output_path is None else str(output_path)
             # create a new output folder name
@@ -234,8 +238,6 @@ class Trainer:
 
         self.total_steps_done = 0
         self.epochs_done = 0
-        self.restore_step = 0
-        self.restore_epoch = 0
         self.best_loss: LossDict | float = {
             "train_loss": float("inf"),
             "eval_loss": float("inf") if self.config.run_eval else None,
@@ -316,8 +318,9 @@ class Trainer:
             elif isinstance(self.criterion, nn.Module):
                 self.criterion.cuda()
 
-        # setup optimizer
+        # setup optimizer and scheduler
         self.optimizer = self.get_optimizer(self.model, self.config)
+        self.scheduler = self.get_scheduler(self.model, self.config, self.optimizer)
 
         # CALLBACK
         self.callbacks = TrainerCallback()
@@ -329,15 +332,7 @@ class Trainer:
 
         # restore model
         if self.args.restore_path:
-            (self.model, self.optimizer, self.scaler, self.restore_step, self.restore_epoch) = self.restore_model(
-                self.config, args.restore_path, self.model, self.optimizer, self.scaler
-            )
-
-        # setup scheduler
-        self.scheduler = self.get_scheduler(self.model, self.config, self.optimizer)
-        self.scheduler = self.restore_scheduler(
-            self.scheduler, self.args, self.config, self.restore_epoch, self.restore_step
-        )
+            self.restore_model()
 
         # DISTRIBUTED
         self.wrapped_model: TrainerModel | None = None
@@ -387,7 +382,7 @@ class Trainer:
     @staticmethod
     def init_accelerate(
         model: TrainerModel,
-        optimizer: torch.optim.Optimizer | list[torch.optim.Optimizer],
+        optimizer: ValueListDict[torch.optim.Optimizer],
         training_dataloader: DataLoader[Any] | None,
         scheduler: LRScheduler | list[LRScheduler] | dict[str, LRScheduler] | None,
         *,
@@ -414,26 +409,13 @@ class Trainer:
         if isinstance(model, nn.Module):
             model = accelerator.prepare_model(model)
 
-        if isinstance(optimizer, dict):
-            for key, optim in optimizer.items():
-                optimizer[key] = accelerator.prepare_optimizer(optim)
-        elif isinstance(optimizer, list):
-            for i, optim in enumerate(optimizer):
-                optimizer[i] = accelerator.prepare_optimizer(optim)
-        elif optimizer is not None:
-            optimizer = accelerator.prepare_optimizer(optimizer)
+        optimizer = map_value_list_dict(optimizer, accelerator.prepare_optimizer)
 
         if isinstance(training_dataloader, torch.utils.data.DataLoader):
             training_dataloader = accelerator.prepare_data_loader(training_dataloader)
 
-        if isinstance(scheduler, dict):
-            for key, sched in scheduler.items():
-                scheduler[key] = accelerator.prepare_scheduler(sched)
-        elif isinstance(scheduler, list):
-            for i, sched in enumerate(scheduler):
-                scheduler[i] = accelerator.prepare_scheduler(sched)
-        elif scheduler is not None:
-            scheduler = accelerator.prepare_scheduler(scheduler)
+        if scheduler is not None:
+            scheduler = map_value_list_dict(scheduler, accelerator.prepare_scheduler)
 
         return model, optimizer, training_dataloader, scheduler, accelerator
 
@@ -586,28 +568,13 @@ class Trainer:
             return train_samples, eval_samples, test_samples
         return None, None, None
 
-    def restore_model(
-        self,
-        config: TrainerConfig,
-        restore_path: str | os.PathLike[Any],
-        model: TrainerModel,
-        optimizer: torch.optim.Optimizer | list[torch.optim.Optimizer],
-        scaler: Optional["torch.GradScaler"] = None,
-    ) -> tuple[TrainerModel, torch.optim.Optimizer | list[torch.optim.Optimizer], "torch.GradScaler | None", int, int]:
-        """Restore training from an old run. It restores model, optimizer, AMP scaler and training stats.
+    def restore_model(self) -> None:
+        """Restore training from an old run.
 
-        Args:
-            config (TrainerConfig): Model config.
-            restore_path (str): Path to the restored training run.
-            model (TrainerModel): Model to restored.
-            optimizer (torch.optim.Optimizer): Optimizer to restore.
-            scaler (torch.GradScaler, optional): AMP scaler to restore. Defaults to None.
-
-        Returns:
-            Tuple[TrainerModel, torch.optim.Optimizer, torch.GradScaler, int, int]: [description]
+        It restores model, optimizer, AMP scaler and training stats.
         """
 
-        def _restore_list_objs(states: Any, obj: Any) -> Any:
+        def _restore_list_objs(states: Any, obj: Any) -> None:
             if isinstance(obj, list):
                 for idx, state in enumerate(states):
                     obj[idx].load_state_dict(state)
@@ -616,58 +583,51 @@ class Trainer:
                     obj[key].load_state_dict(state)
             else:
                 obj.load_state_dict(states)
-            return obj
 
-        logger.info(" > Restoring from %s ...", os.path.basename(restore_path))
-        checkpoint = load_fsspec(restore_path, map_location="cpu")
+        verb = "Continuing" if self.continue_run else "Restoring"
+        logger.info(" > %s from %s ...", verb, os.path.basename(self.args.restore_path))
+        checkpoint = load_fsspec(self.args.restore_path, map_location="cpu")
 
         try:
             logger.info(" > Restoring Model...")
-            model.load_state_dict(checkpoint["model"])
-            logger.info(" > Restoring Optimizer...")
-            try:
-                optimizer = _restore_list_objs(checkpoint["optimizer"], optimizer)
-            except (KeyError, TypeError, RuntimeError):
-                logger.info(" > Optimizer is not compatible with the restored model.")
-            if "scaler" in checkpoint and self.use_amp_scaler and checkpoint["scaler"]:
-                logger.info(" > Restoring Scaler...")
-                scaler = _restore_list_objs(checkpoint["scaler"], scaler)
+            self.model.load_state_dict(checkpoint["model"])
+            if self.continue_run:
+                logger.info(" > Restoring Optimizer...")
+                try:
+                    _restore_list_objs(checkpoint["optimizer"], self.optimizer)
+                except (KeyError, TypeError, RuntimeError):
+                    logger.info(" > Optimizer is not compatible with the restored model.")
+                if checkpoint.get("scheduler"):
+                    logger.info(" > Restoring Scheduler...")
+                    _restore_list_objs(checkpoint["scheduler"], self.scheduler)
+                if "scaler" in checkpoint and self.use_amp_scaler and checkpoint["scaler"]:
+                    logger.info(" > Restoring Scaler...")
+                    _restore_list_objs(checkpoint["scaler"], self.scaler)
         except (KeyError, RuntimeError, ValueError):
             logger.info(" > Partial model initialization...")
-            model_dict = model.state_dict()
-            model_dict = set_partial_state_dict(model_dict, checkpoint["model"], config)
-            model.load_state_dict(model_dict)
+            model_dict = self.model.state_dict()
+            model_dict = set_partial_state_dict(model_dict, checkpoint["model"], self.config)
+            self.model.load_state_dict(model_dict)
             del model_dict
 
-        optimizer = self.restore_lr(config, self.args, model, optimizer)
+        self.total_steps_done = checkpoint["step"] + 1  # +1 not to immediately checkpoint if the model is restored
+        self.epochs_done = checkpoint["epoch"]
+
+        if not self.continue_run:
+            self.total_steps_done = 0
+            self.epochs_done = 0
+            # Use LR read from the checkpoint if we continue a training run
+            self.reset_lr()
 
         logger.info(" > Model restored from step %i", checkpoint["step"])
-        restore_step = checkpoint["step"] + 1  # +1 not to immediately checkpoint if the model is restored
-        restore_epoch = checkpoint["epoch"]
         torch.cuda.empty_cache()
-        return model, optimizer, scaler, restore_step, restore_epoch
 
-    def restore_lr(
-        self,
-        config: TrainerConfig,
-        args: TrainerArgs,
-        model: TrainerModel,
-        optimizer: torch.optim.Optimizer | list[torch.optim.Optimizer],
-    ) -> torch.optim.Optimizer | list[torch.optim.Optimizer]:
-        # use the same lr if continue training
-        if not args.continue_path:
-            if isinstance(optimizer, list):
-                for idx, optim in enumerate(optimizer):
-                    for group in optim.param_groups:
-                        group["lr"] = self.get_lr(model, config)[idx]  # type: ignore[index]
-            elif isinstance(optimizer, dict):
-                for optim_name, optim in optimizer.items():
-                    for group in optim.param_groups:
-                        group["lr"] = self.get_lr(model, config)[optim_name]  # type: ignore[index]
-            else:
-                for group in optimizer.param_groups:
-                    group["lr"] = self.get_lr(model, config)
-        return optimizer
+    def reset_lr(self) -> None:
+        """Reset learning rate to default values."""
+        for key, optim in iter_value_list_dict(self.optimizer):
+            for group in optim.param_groups:
+                lr = self.get_lr(self.model, self.config)
+                group["lr"] = lr[key] if key is not None else lr  # type: ignore[index]
 
     #########################
     # DATA LOADING FUNCTIONS
@@ -705,7 +665,7 @@ class Trainer:
         return self.wrapped_model
 
     def get_train_dataloader(
-        self, training_assets: dict[str, Any], samples: list[Any] | None, *, verbose: bool
+        self, training_assets: dict[str, Any], samples: list[Any] | None, *, verbose: bool = True
     ) -> DataLoader[Any]:
         """Initialize and return a training data loader.
 
@@ -1116,6 +1076,13 @@ class Trainer:
         outputs: dict[str, Any] | list[dict[str, Any]]
         loss_dict = {}
 
+        # log learning rates (do it before they're updated in optimize())
+        lrs = {}
+        for key, optim in iter_value_list_dict(self.optimizer):
+            name = f"current_lr_{key}" if key is not None else "current_lr"
+            lrs[name] = optim.param_groups[0]["lr"]
+        loss_dict.update(lrs)
+
         # OPTIMIZATION
         try:
             # custom optimize for the model
@@ -1143,8 +1110,8 @@ class Trainer:
                 if isinstance(self.scheduler, list):
                     msg = "Can't use list of schedulers with a single optimizer."
                     raise TypeError(msg) from e
-                if isinstance(self.scheduler, dict):
-                    msg = "Can only use dict of schedulers with custom `optimize()`"
+                if isinstance(self.optimizer, dict) or isinstance(self.scheduler, dict):
+                    msg = "Can only use dict of optimizers/schedulers with custom `optimize()`"
                     raise TypeError(msg) from e
                 # auto training with a single optimizer
                 outputs, loss_dict_new, step_time = self.optimize(
@@ -1216,22 +1183,7 @@ class Trainer:
 
         # print training progress
         if self.total_steps_done % self.config.print_step == 0:
-            # log learning rates
-            lrs = {}
-            if isinstance(self.optimizer, list):
-                for idx, optimizer in enumerate(self.optimizer):
-                    current_lr = optimizer.param_groups[0]["lr"]
-                    lrs.update({f"current_lr_{idx}": current_lr})
-            elif isinstance(self.optimizer, dict):
-                for key, optimizer in self.optimizer.items():
-                    current_lr = optimizer.param_groups[0]["lr"]
-                    lrs.update({f"current_lr_{key}": current_lr})
-            else:
-                current_lr = self.optimizer.param_groups[0]["lr"]
-                lrs = {"current_lr": current_lr}
-
             # log run-time stats
-            loss_dict.update(lrs)
             loss_dict.update(
                 {
                     "step_time": round(step_time, 4),
@@ -1306,16 +1258,9 @@ class Trainer:
 
         # scheduler step
         if self.scheduler is not None and self.config.scheduler_after_epoch:
-            if isinstance(self.scheduler, list):
-                for scheduler in self.scheduler:
-                    if scheduler is not None:
-                        scheduler.step()
-            elif isinstance(self.scheduler, dict):  # only with `model.optimize()``
-                for scheduler in self.scheduler.values():
-                    if scheduler is not None:
-                        scheduler.step()
-            else:
-                self.scheduler.step()
+            for _, scheduler in iter_value_list_dict(self.scheduler):
+                if scheduler is not None:
+                    scheduler.step()
         # plot self.epochs_done Stats
         if self.args.rank == 0:
             epoch_stats = {"epoch_time": epoch_time}
@@ -1487,7 +1432,7 @@ class Trainer:
         Restore from the args.best_path if provided else from the model
         (`args.continue_path`) used for resuming the training.
         """
-        if self.args.continue_path and (self.restore_step != 0 or self.args.best_path):
+        if self.continue_run and (self.total_steps_done != 0 or self.args.best_path):
             logger.info(" > Restoring best loss from %s ...", os.path.basename(self.args.best_path))
             ch = load_fsspec(self.args.restore_path, map_location="cpu")
             if "model_loss" in ch:
@@ -1538,9 +1483,7 @@ class Trainer:
         """🏃 train -> evaluate -> test for the number of epochs."""
         self._restore_best_loss()
 
-        self.total_steps_done = self.restore_step
-
-        for epoch in range(self.config.epochs):
+        for epoch in range(self.epochs_done, self.config.epochs):
             if self.num_gpus > 1:
                 # let all processes sync up before starting with a new epoch of training
                 dist.barrier()
@@ -1686,11 +1629,12 @@ class Trainer:
             self.best_loss,
             self.config,
             self._get_model(),
-            self.optimizer,
-            self.scaler if self.use_amp_scaler else None,
-            self.total_steps_done,
-            self.epochs_done,
             self.output_path,
+            current_step=self.total_steps_done,
+            epoch=self.epochs_done,
+            optimizer=self.optimizer,
+            scheduler=self.scheduler,
+            scaler=self.scaler if self.use_amp_scaler else None,
             keep_all_best=self.config.save_all_best,
             keep_after=self.config.save_best_after,
             save_func=self.dashboard_logger.save_model,
@@ -1705,11 +1649,12 @@ class Trainer:
         save_checkpoint(
             self.config,
             self._get_model(),
-            self.optimizer,
-            self.scaler if self.use_amp_scaler else None,
-            self.total_steps_done,
-            self.epochs_done,
             self.output_path,
+            current_step=self.total_steps_done,
+            epoch=self.epochs_done,
+            optimizer=self.optimizer,
+            scheduler=self.scheduler,
+            scaler=self.scaler if self.use_amp_scaler else None,
             model_loss={"train_loss": train_loss, "eval_loss": eval_loss},
             save_n_checkpoints=self.config.save_n_checkpoints,
             save_func=self.dashboard_logger.save_model,
@@ -1744,9 +1689,7 @@ class Trainer:
     #####################
 
     @staticmethod
-    def get_optimizer(
-        model: TrainerModel, config: TrainerConfig
-    ) -> torch.optim.Optimizer | list[torch.optim.Optimizer]:
+    def get_optimizer(model: TrainerModel, config: TrainerConfig) -> ValueListDict[torch.optim.Optimizer]:
         """Return the optimizer.
 
         From the model if model implements `get_optimizer()` else
@@ -1799,7 +1742,7 @@ class Trainer:
         model: TrainerModel,
         config: TrainerConfig,
         optimizer: torch.optim.Optimizer | list[torch.optim.Optimizer] | dict[str, torch.optim.Optimizer],
-    ) -> LRScheduler | list[LRScheduler] | dict[str, LRScheduler] | None:
+    ) -> ValueListDict[LRScheduler] | None:
         """Return the scheduler.
 
         From the model if model implements `get_scheduler()` else
@@ -1818,36 +1761,6 @@ class Trainer:
             lr_scheduler = config.lr_scheduler
             lr_scheduler_params = config.lr_scheduler_params
             return get_scheduler(lr_scheduler, lr_scheduler_params, optimizer)  # type: ignore[arg-type]
-
-    @staticmethod
-    def restore_scheduler(
-        scheduler: LRScheduler | list[LRScheduler] | dict[str, LRScheduler] | None,
-        args: TrainerArgs,
-        config: TrainerConfig,
-        restore_epoch: int,
-        restore_step: int,
-    ) -> LRScheduler | list[LRScheduler] | dict[str, LRScheduler] | None:
-        """Restore scheduler wrt restored model."""
-        if scheduler is not None and args.continue_path:
-            if isinstance(scheduler, list):
-                for s in scheduler:
-                    if s is not None:
-                        if config.scheduler_after_epoch:
-                            s.last_epoch = restore_epoch
-                        else:
-                            s.last_epoch = restore_step
-            elif isinstance(scheduler, dict):
-                for s in scheduler.values():
-                    if s is not None:
-                        if config.scheduler_after_epoch:
-                            s.last_epoch = restore_epoch
-                        else:
-                            s.last_epoch = restore_step
-            elif config.scheduler_after_epoch:
-                scheduler.last_epoch = restore_epoch
-            else:
-                scheduler.last_epoch = restore_step
-        return scheduler
 
     @staticmethod
     def get_criterion(model: TrainerModel) -> nn.Module | list[nn.Module]:
