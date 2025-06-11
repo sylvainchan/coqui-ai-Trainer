@@ -19,7 +19,7 @@ from torch import nn
 from torch.nn.parallel import DistributedDataParallel as DDP_th
 from torch.utils.data import DataLoader
 
-from trainer._types import Callback, LossDict, LRScheduler
+from trainer._types import Callback, LossDict, LRScheduler, ValueListDict
 from trainer.callbacks import TrainerCallback
 from trainer.config import TrainerArgs, TrainerConfig
 from trainer.generic_utils import (
@@ -29,6 +29,8 @@ from trainer.generic_utils import (
     get_git_branch,
     is_pytorch_at_least_2_3,
     is_pytorch_at_least_2_4,
+    iter_value_list_dict,
+    map_value_list_dict,
     remove_experiment_folder,
     set_partial_state_dict,
     to_cuda,
@@ -380,7 +382,7 @@ class Trainer:
     @staticmethod
     def init_accelerate(
         model: TrainerModel,
-        optimizer: torch.optim.Optimizer | list[torch.optim.Optimizer],
+        optimizer: ValueListDict[torch.optim.Optimizer],
         training_dataloader: DataLoader[Any] | None,
         scheduler: LRScheduler | list[LRScheduler] | dict[str, LRScheduler] | None,
         *,
@@ -407,26 +409,13 @@ class Trainer:
         if isinstance(model, nn.Module):
             model = accelerator.prepare_model(model)
 
-        if isinstance(optimizer, dict):
-            for key, optim in optimizer.items():
-                optimizer[key] = accelerator.prepare_optimizer(optim)
-        elif isinstance(optimizer, list):
-            for i, optim in enumerate(optimizer):
-                optimizer[i] = accelerator.prepare_optimizer(optim)
-        elif optimizer is not None:
-            optimizer = accelerator.prepare_optimizer(optimizer)
+        optimizer = map_value_list_dict(optimizer, accelerator.prepare_optimizer)
 
         if isinstance(training_dataloader, torch.utils.data.DataLoader):
             training_dataloader = accelerator.prepare_data_loader(training_dataloader)
 
-        if isinstance(scheduler, dict):
-            for key, sched in scheduler.items():
-                scheduler[key] = accelerator.prepare_scheduler(sched)
-        elif isinstance(scheduler, list):
-            for i, sched in enumerate(scheduler):
-                scheduler[i] = accelerator.prepare_scheduler(sched)
-        elif scheduler is not None:
-            scheduler = accelerator.prepare_scheduler(scheduler)
+        if scheduler is not None:
+            scheduler = map_value_list_dict(scheduler, accelerator.prepare_scheduler)
 
         return model, optimizer, training_dataloader, scheduler, accelerator
 
@@ -635,17 +624,10 @@ class Trainer:
 
     def reset_lr(self) -> None:
         """Reset learning rate to default values."""
-        if isinstance(self.optimizer, list):
-            for idx, optim in enumerate(self.optimizer):
-                for group in optim.param_groups:
-                    group["lr"] = self.get_lr(self.model, self.config)[idx]  # type: ignore[index]
-        elif isinstance(self.optimizer, dict):
-            for optim_name, optim in self.optimizer.items():
-                for group in optim.param_groups:
-                    group["lr"] = self.get_lr(self.model, self.config)[optim_name]  # type: ignore[index]
-        else:
-            for group in self.optimizer.param_groups:
-                group["lr"] = self.get_lr(self.model, self.config)
+        for key, optim in iter_value_list_dict(self.optimizer):
+            for group in optim.param_groups:
+                lr = self.get_lr(self.model, self.config)
+                group["lr"] = lr[key] if key is not None else lr  # type: ignore[index]
 
     #########################
     # DATA LOADING FUNCTIONS
@@ -1096,17 +1078,9 @@ class Trainer:
 
         # log learning rates (do it before they're updated in optimize())
         lrs = {}
-        if isinstance(self.optimizer, list):
-            for idx, optimizer in enumerate(self.optimizer):
-                current_lr = optimizer.param_groups[0]["lr"]
-                lrs.update({f"current_lr_{idx}": current_lr})
-        elif isinstance(self.optimizer, dict):
-            for key, optimizer in self.optimizer.items():
-                current_lr = optimizer.param_groups[0]["lr"]
-                lrs.update({f"current_lr_{key}": current_lr})
-        else:
-            current_lr = self.optimizer.param_groups[0]["lr"]
-            lrs = {"current_lr": current_lr}
+        for key, optim in iter_value_list_dict(self.optimizer):
+            name = f"current_lr_{key}" if key is not None else "current_lr"
+            lrs[name] = optim.param_groups[0]["lr"]
         loss_dict.update(lrs)
 
         # OPTIMIZATION
@@ -1136,8 +1110,8 @@ class Trainer:
                 if isinstance(self.scheduler, list):
                     msg = "Can't use list of schedulers with a single optimizer."
                     raise TypeError(msg) from e
-                if isinstance(self.scheduler, dict):
-                    msg = "Can only use dict of schedulers with custom `optimize()`"
+                if isinstance(self.optimizer, dict) or isinstance(self.scheduler, dict):
+                    msg = "Can only use dict of optimizers/schedulers with custom `optimize()`"
                     raise TypeError(msg) from e
                 # auto training with a single optimizer
                 outputs, loss_dict_new, step_time = self.optimize(
@@ -1284,16 +1258,9 @@ class Trainer:
 
         # scheduler step
         if self.scheduler is not None and self.config.scheduler_after_epoch:
-            if isinstance(self.scheduler, list):
-                for scheduler in self.scheduler:
-                    if scheduler is not None:
-                        scheduler.step()
-            elif isinstance(self.scheduler, dict):  # only with `model.optimize()``
-                for scheduler in self.scheduler.values():
-                    if scheduler is not None:
-                        scheduler.step()
-            else:
-                self.scheduler.step()
+            for _, scheduler in iter_value_list_dict(self.scheduler):
+                if scheduler is not None:
+                    scheduler.step()
         # plot self.epochs_done Stats
         if self.args.rank == 0:
             epoch_stats = {"epoch_time": epoch_time}
@@ -1722,9 +1689,7 @@ class Trainer:
     #####################
 
     @staticmethod
-    def get_optimizer(
-        model: TrainerModel, config: TrainerConfig
-    ) -> torch.optim.Optimizer | list[torch.optim.Optimizer]:
+    def get_optimizer(model: TrainerModel, config: TrainerConfig) -> ValueListDict[torch.optim.Optimizer]:
         """Return the optimizer.
 
         From the model if model implements `get_optimizer()` else
@@ -1777,7 +1742,7 @@ class Trainer:
         model: TrainerModel,
         config: TrainerConfig,
         optimizer: torch.optim.Optimizer | list[torch.optim.Optimizer] | dict[str, torch.optim.Optimizer],
-    ) -> LRScheduler | list[LRScheduler] | dict[str, LRScheduler] | None:
+    ) -> ValueListDict[LRScheduler] | None:
         """Return the scheduler.
 
         From the model if model implements `get_scheduler()` else

@@ -14,8 +14,8 @@ from coqpit import Coqpit
 from torch.optim.optimizer import StateDict
 from torch.types import Storage
 
-from trainer._types import LossDict, LRScheduler
-from trainer.generic_utils import is_pytorch_at_least_2_4
+from trainer._types import LossDict, LRScheduler, ValueListDict
+from trainer.generic_utils import is_pytorch_at_least_2_4, map_value_list_dict
 from trainer.logger import logger
 from trainer.model import TrainerModel
 
@@ -130,28 +130,20 @@ def save_model(
     *,
     current_step: int,
     epoch: int,
-    optimizer: torch.optim.Optimizer | list[torch.optim.Optimizer] | None = None,
-    scheduler: LRScheduler | list[LRScheduler] | dict[str, LRScheduler] | None = None,
+    optimizer: ValueListDict[torch.optim.Optimizer] | None = None,
+    scheduler: ValueListDict[LRScheduler] | None = None,
     scaler: "torch.GradScaler | None" = None,
     save_func: Callable[[Any, str | os.PathLike[Any]], None] | None = None,
     **kwargs: Any,
 ) -> None:
     model_state = model.state_dict()
-    optimizer_state: StateDict | list[StateDict] | None = None
-    if isinstance(optimizer, list):
-        optimizer_state = [optim.state_dict() for optim in optimizer]
-    elif isinstance(optimizer, dict):
-        optimizer_state = {k: v.state_dict() for k, v in optimizer.items()}
-    else:
-        optimizer_state = optimizer.state_dict() if optimizer is not None else None
+    optimizer_state: ValueListDict[StateDict] | None = None
+    if optimizer is not None:
+        optimizer_state = map_value_list_dict(optimizer, lambda o: o.state_dict())
 
-    scheduler_state: StateDict | list[StateDict] | dict[str, StateDict] | None = None
-    if isinstance(scheduler, list):
-        scheduler_state = [optim.state_dict() for optim in scheduler]
-    elif isinstance(scheduler, dict):
-        scheduler_state = {k: v.state_dict() for k, v in scheduler.items()}
-    else:
-        scheduler_state = scheduler.state_dict() if scheduler is not None else None
+    scheduler_state: ValueListDict[StateDict] | None = None
+    if scheduler is not None:
+        scheduler_state = map_value_list_dict(scheduler, lambda s: s.state_dict())
 
     scaler_state: StateDict | list[StateDict] | None = None
     if isinstance(scaler, list):
@@ -186,8 +178,8 @@ def save_checkpoint(
     *,
     current_step: int,
     epoch: int,
-    optimizer: torch.optim.Optimizer | list[torch.optim.Optimizer] | None = None,
-    scheduler: LRScheduler | list[LRScheduler] | dict[str, LRScheduler] | None = None,
+    optimizer: ValueListDict[torch.optim.Optimizer] | None = None,
+    scheduler: ValueListDict[LRScheduler] | None = None,
     scaler: "torch.GradScaler | None" = None,
     save_n_checkpoints: int | None = None,
     save_func: Callable[[Any, str | os.PathLike[Any]], None] | None = None,
@@ -222,8 +214,8 @@ def save_best_model(
     *,
     current_step: int,
     epoch: int,
-    optimizer: torch.optim.Optimizer | list[torch.optim.Optimizer] | None = None,
-    scheduler: LRScheduler | list[LRScheduler] | dict[str, LRScheduler] | None = None,
+    optimizer: ValueListDict[torch.optim.Optimizer] | None = None,
+    scheduler: ValueListDict[LRScheduler] | None = None,
     scaler: "torch.GradScaler | None" = None,
     keep_all_best: bool = False,
     keep_after: int = 0,
