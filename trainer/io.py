@@ -126,17 +126,18 @@ def save_fsspec(state: Any, path: str | os.PathLike[Any], **kwargs: Any) -> None
 def save_model(
     config: dict[str, Any] | Coqpit,
     model: TrainerModel,
-    optimizer: torch.optim.Optimizer | list[torch.optim.Optimizer],
-    scheduler: LRScheduler | list[LRScheduler] | dict[str, LRScheduler] | None,
-    scaler: "torch.GradScaler | None",
+    output_path: str | os.PathLike[Any],
+    *,
     current_step: int,
     epoch: int,
-    output_path: str | os.PathLike[Any],
+    optimizer: torch.optim.Optimizer | list[torch.optim.Optimizer] | None = None,
+    scheduler: LRScheduler | list[LRScheduler] | dict[str, LRScheduler] | None = None,
+    scaler: "torch.GradScaler | None" = None,
     save_func: Callable[[Any, str | os.PathLike[Any]], None] | None = None,
     **kwargs: Any,
 ) -> None:
     model_state = model.state_dict()
-    optimizer_state: StateDict | list[StateDict] | None
+    optimizer_state: StateDict | list[StateDict] | None = None
     if isinstance(optimizer, list):
         optimizer_state = [optim.state_dict() for optim in optimizer]
     elif isinstance(optimizer, dict):
@@ -144,7 +145,7 @@ def save_model(
     else:
         optimizer_state = optimizer.state_dict() if optimizer is not None else None
 
-    scheduler_state: StateDict | list[StateDict] | dict[str, StateDict] | None
+    scheduler_state: StateDict | list[StateDict] | dict[str, StateDict] | None = None
     if isinstance(scheduler, list):
         scheduler_state = [optim.state_dict() for optim in scheduler]
     elif isinstance(scheduler, dict):
@@ -152,7 +153,7 @@ def save_model(
     else:
         scheduler_state = scheduler.state_dict() if scheduler is not None else None
 
-    scaler_state: StateDict | list[StateDict] | None
+    scaler_state: StateDict | list[StateDict] | None = None
     if isinstance(scaler, list):
         scaler_state = [s.state_dict() for s in scaler]
     else:
@@ -181,12 +182,13 @@ def save_model(
 def save_checkpoint(
     config: dict[str, Any] | Coqpit,
     model: TrainerModel,
-    optimizer: torch.optim.Optimizer | list[torch.optim.Optimizer],
-    scheduler: LRScheduler | list[LRScheduler] | dict[str, LRScheduler] | None,
-    scaler: "torch.GradScaler | None",
+    output_folder: str | os.PathLike[Any],
+    *,
     current_step: int,
     epoch: int,
-    output_folder: str | os.PathLike[Any],
+    optimizer: torch.optim.Optimizer | list[torch.optim.Optimizer] | None = None,
+    scheduler: LRScheduler | list[LRScheduler] | dict[str, LRScheduler] | None = None,
+    scaler: "torch.GradScaler | None" = None,
     save_n_checkpoints: int | None = None,
     save_func: Callable[[Any, str | os.PathLike[Any]], None] | None = None,
     **kwargs: Any,
@@ -198,12 +200,12 @@ def save_checkpoint(
     save_model(
         config,
         model,
-        optimizer,
-        scheduler,
-        scaler,
-        current_step,
-        epoch,
         checkpoint_path,
+        current_step=current_step,
+        epoch=epoch,
+        optimizer=optimizer,
+        scheduler=scheduler,
+        scaler=scaler,
         save_func=save_func,
         **kwargs,
     )
@@ -216,13 +218,13 @@ def save_best_model(
     best_loss: LossDict | float,
     config: dict[str, Any] | Coqpit,
     model: TrainerModel,
-    optimizer: torch.optim.Optimizer | list[torch.optim.Optimizer],
-    scheduler: LRScheduler | list[LRScheduler] | dict[str, LRScheduler] | None,
-    scaler: "torch.GradScaler | None",
-    current_step: int,
-    epoch: int,
     out_path: str | os.PathLike[Any],
     *,
+    current_step: int,
+    epoch: int,
+    optimizer: torch.optim.Optimizer | list[torch.optim.Optimizer] | None = None,
+    scheduler: LRScheduler | list[LRScheduler] | dict[str, LRScheduler] | None = None,
+    scaler: "torch.GradScaler | None" = None,
     keep_all_best: bool = False,
     keep_after: int = 0,
     save_func: Callable[[Any, str | os.PathLike[Any]], None] | None = None,
@@ -246,12 +248,12 @@ def save_best_model(
         save_model(
             config,
             model,
-            optimizer,
-            scheduler,
-            scaler,
-            current_step,
-            epoch,
             checkpoint_path,
+            current_step=current_step,
+            epoch=epoch,
+            optimizer=optimizer,
+            scheduler=scheduler,
+            scaler=scaler,
             model_loss=current_loss,
             save_func=save_func,
             **kwargs,
