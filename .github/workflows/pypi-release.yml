@@ -39,7 +39,7 @@ jobs:
     needs: [build]
     environment:
       name: release
-      url: https://pypi.org/p/coqui-tts-trainer
+      url: https://pypi.org/p/sylvain-tts-trainer
     permissions:
       id-token: write
     steps:

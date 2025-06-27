@@ -25,7 +25,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "coqui-tts-trainer"
+name = "sylvain-tts-trainer"
 version = "0.3.0"
 description = "General purpose model trainer for PyTorch that is more flexible than it should be, by 🐸Coqui."
 readme = "README.md"
